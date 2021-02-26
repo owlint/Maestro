@@ -31,4 +31,7 @@ build:
 test.cov:
 	go test -v ./... 2>&1 | go-junit-report -set-exit-code > report.xml
 
+run:
+	go run cmd/srv/main.go
+
 all: test build

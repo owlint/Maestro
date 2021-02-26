@@ -51,6 +51,32 @@ func TestNextEmpty(t *testing.T) {
 	assert.Nil(t, nextTask)
 }
 
+func TestState(t *testing.T) {
+	client, database := drivers.ConnectMongo()
+	defer client.Disconnect(context.TODO())
+	projection := projection.NewTaskStateProjection(database)
+	service := getTaskService(projection)
+	view := NewTaskStateView(database)
+
+	queue1 := uuid.New().String()
+	taskID1 := service.Create(queue1, 15, 2, []byte{})
+
+	task, err := view.State(taskID1)
+	assert.Nil(t, err)
+	assert.NotNil(t, task)
+}
+func TestStateUnknown(t *testing.T) {
+	client, database := drivers.ConnectMongo()
+	defer client.Disconnect(context.TODO())
+	view := NewTaskStateView(database)
+
+	taskID := uuid.New().String()
+
+	task, err := view.State(taskID)
+	assert.NotNil(t, err)
+	assert.Nil(t, task)
+}
+
 func getTaskService(projection projection.TaskStateProjection) services.TaskService {
 	publisher := goddd.NewEventPublisher()
 	publisher.Wait = true
