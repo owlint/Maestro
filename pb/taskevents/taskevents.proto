@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package maestro;
+
+option go_package = "github.com/owlint/maestro/pb/taskevents";
+
+
+message TaskIDSet {
+    string TaskID = 1;
+}
+
+message TaskQueueChanged {
+    string TaskQueue = 1;
+}
+
+message StateChanged {
+    string State = 1;
+}
+
+message TimeoutChanged {
+    int32 Timeout = 1;
+}
+
+message MaxRetriesSet {
+    int32 MaxRetries = 1;
+}
+
+message Created {
+    int64 Timestamp = 1;
+}
+
+message Updated {
+    int64 Timestamp = 1;
+}
+
+message Retried {
+    int32 retries = 1;
+}
