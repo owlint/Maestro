@@ -11,7 +11,7 @@ import (
 )
 
 func TestSavePayload(t *testing.T) {
-	client := drivers.ConnectRedis()
+	client := drivers.ConnectRedis(drivers.NewRedisOptions())
 	repo := NewPayloadRepository(client)
 	taskID := uuid.New().String()
 
@@ -26,7 +26,7 @@ func TestSavePayload(t *testing.T) {
 }
 
 func TestSaveResult(t *testing.T) {
-	client := drivers.ConnectRedis()
+	client := drivers.ConnectRedis(drivers.NewRedisOptions())
 	repo := NewPayloadRepository(client)
 	taskID := uuid.New().String()
 
@@ -40,7 +40,7 @@ func TestSaveResult(t *testing.T) {
 	assert.Equal(t, float64(300), keyTTL(t, client, payloadKey))
 }
 func TestDelete(t *testing.T) {
-	client := drivers.ConnectRedis()
+	client := drivers.ConnectRedis(drivers.NewRedisOptions())
 	repo := NewPayloadRepository(client)
 	taskID := uuid.New().String()
 

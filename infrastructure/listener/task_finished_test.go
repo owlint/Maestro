@@ -52,7 +52,7 @@ func getDeps() (services.TaskService, *redis.Client) {
 	publisher := goddd.NewEventPublisher()
 	publisher.Wait = true
 	taskRepo := goddd.NewInMemoryRepository(&publisher)
-	redisClient := drivers.ConnectRedis()
+	redisClient := drivers.ConnectRedis(drivers.NewRedisOptions())
 	payloadRepo := repository.NewPayloadRepository(redisClient)
 	listener := NewTaskFinishedListener(payloadRepo)
 	publisher.Register(listener)

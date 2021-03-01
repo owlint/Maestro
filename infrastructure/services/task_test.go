@@ -14,7 +14,7 @@ import (
 
 var publisher goddd.EventPublisher = goddd.NewEventPublisher()
 var taskRepo goddd.InMemoryRepository = goddd.NewInMemoryRepository(&publisher)
-var payloadRepo repository.PayloadRepository = repository.NewPayloadRepository(drivers.ConnectRedis())
+var payloadRepo repository.PayloadRepository = repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 
 func TestCreate(t *testing.T) {
 	service := NewTaskService(&taskRepo, payloadRepo)
@@ -32,7 +32,7 @@ func TestPayloadExists(t *testing.T) {
 	taskID, err := service.Create("test", 3, 5, "12345")
 	assert.Nil(t, err)
 
-	client := drivers.ConnectRedis()
+	client := drivers.ConnectRedis(drivers.NewRedisOptions())
 	result := client.Exists(fmt.Sprintf("Payload-%s", taskID))
 
 	assert.Nil(t, result.Err())

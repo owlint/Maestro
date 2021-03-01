@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/julienschmidt/httprouter"
@@ -19,9 +21,9 @@ import (
 )
 
 func main() {
-	mongoClient, mongoDB := drivers.ConnectMongo()
+	mongoClient, mongoDB := drivers.ConnectMongo(getMongoConnectionOptions())
 	defer mongoClient.Disconnect(context.TODO())
-	redisClient := drivers.ConnectRedis()
+	redisClient := drivers.ConnectRedis(getRedisConnectionOptions())
 	defer redisClient.Close()
 
 	eventPublisher := goddd.NewEventPublisher()
@@ -74,4 +76,44 @@ func main() {
 	router.Handler("POST", "/api/task/timeout", timeoutTaskHandler)
 	router.Handler("POST", "/api/queue/next", queueNextTaskHandler)
 	log.Fatal(http.ListenAndServe(":8080", router))
+}
+
+func getMongoConnectionOptions() drivers.MongoOptions {
+	options := drivers.NewMongoOptions()
+
+	if val, exist := os.LookupEnv("MONGO_URI"); exist {
+		options.ConnectionURI = val
+	}
+
+	return options
+}
+
+func getRedisConnectionOptions() drivers.RedisOptions {
+	options := drivers.NewRedisOptions()
+
+	if val, exist := os.LookupEnv("REDIS_HOST"); exist {
+		options.Host = val
+	}
+
+	if val, exist := os.LookupEnv("REDIS_PORT"); exist {
+		port, err := strconv.Atoi(val)
+		if err != nil {
+			panic(err)
+		}
+		options.Port = port
+	}
+
+	if val, exist := os.LookupEnv("REDIS_PASSWORD"); exist {
+		options.Password = val
+	}
+
+	if val, exist := os.LookupEnv("REDIS_DB"); exist {
+		db, err := strconv.Atoi(val)
+		if err != nil {
+			panic(err)
+		}
+		options.Database = db
+	}
+
+	return options
 }

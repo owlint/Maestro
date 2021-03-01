@@ -15,7 +15,7 @@ import (
 )
 
 func TestNext(t *testing.T) {
-	client, database := drivers.ConnectMongo()
+	client, database := drivers.ConnectMongo(drivers.NewMongoOptions())
 	defer client.Disconnect(context.TODO())
 	projection := projection.NewTaskStateProjection(database)
 	service := getTaskService(projection)
@@ -43,7 +43,7 @@ func TestNext(t *testing.T) {
 	assert.Equal(t, taskID2, nextTask.TaskID)
 }
 func TestNextEmpty(t *testing.T) {
-	client, database := drivers.ConnectMongo()
+	client, database := drivers.ConnectMongo(drivers.NewMongoOptions())
 	defer client.Disconnect(context.TODO())
 	view := NewTaskStateView(database)
 
@@ -55,7 +55,7 @@ func TestNextEmpty(t *testing.T) {
 }
 
 func TestState(t *testing.T) {
-	client, database := drivers.ConnectMongo()
+	client, database := drivers.ConnectMongo(drivers.NewMongoOptions())
 	defer client.Disconnect(context.TODO())
 	projection := projection.NewTaskStateProjection(database)
 	service := getTaskService(projection)
@@ -70,7 +70,7 @@ func TestState(t *testing.T) {
 	assert.NotNil(t, task)
 }
 func TestStateUnknown(t *testing.T) {
-	client, database := drivers.ConnectMongo()
+	client, database := drivers.ConnectMongo(drivers.NewMongoOptions())
 	defer client.Disconnect(context.TODO())
 	view := NewTaskStateView(database)
 
@@ -86,6 +86,6 @@ func getTaskService(projection projection.TaskStateProjection) services.TaskServ
 	publisher.Wait = true
 	publisher.Register(projection)
 	taskRepo := goddd.NewInMemoryRepository(&publisher)
-	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis())
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	return services.NewTaskService(&taskRepo, payloadRepo)
 }

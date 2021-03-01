@@ -22,7 +22,7 @@ type taskState struct {
 }
 
 func TestTaskStateCreation(t *testing.T) {
-	client, database := drivers.ConnectMongo()
+	client, database := drivers.ConnectMongo(drivers.NewMongoOptions())
 	defer client.Disconnect(context.TODO())
 	projection := NewTaskStateProjection(database)
 
@@ -30,7 +30,7 @@ func TestTaskStateCreation(t *testing.T) {
 }
 
 func TestTaskCreation(t *testing.T) {
-	client, database := drivers.ConnectMongo()
+	client, database := drivers.ConnectMongo(drivers.NewMongoOptions())
 	defer client.Disconnect(context.TODO())
 	projection := NewTaskStateProjection(database)
 	service := getTaskService(projection)
@@ -46,7 +46,7 @@ func TestTaskCreation(t *testing.T) {
 }
 
 func TestTaskModified(t *testing.T) {
-	client, database := drivers.ConnectMongo()
+	client, database := drivers.ConnectMongo(drivers.NewMongoOptions())
 	defer client.Disconnect(context.TODO())
 	projection := NewTaskStateProjection(database)
 	service := getTaskService(projection)
@@ -68,7 +68,7 @@ func getTaskService(projection TaskStateProjection) services.TaskService {
 	publisher.Wait = true
 	publisher.Register(projection)
 	taskRepo := goddd.NewInMemoryRepository(&publisher)
-	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis())
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	return services.NewTaskService(&taskRepo, payloadRepo)
 }
 

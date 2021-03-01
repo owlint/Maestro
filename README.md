@@ -9,6 +9,7 @@ The main features of Maestro are :
 * Retries
 * Cancel
 * Cron Tasks
+* Oblivious : No task payload or result is saved permanently. Your data is safe.
 
 ## Roadmap
 Maestro is at a very early stage of development, not really usable and thus **NOT PRODUCTION READY**.
@@ -61,7 +62,8 @@ curl --request POST \
   --data '{
 	"queue": "queueName",
 	"retries": 3,
-	"timeout": 300
+	"timeout": 300,
+  "payload": "some-string-payload"
 }'
 ```
 
@@ -84,13 +86,24 @@ curl --request POST \
 
 ```json
 {
-  "TaskID": "Task-74484551-70c0-41a1-a9f0-db36923379e2",
-  "Queue": "queueName",
-  "State": "pending",
-  "LastUpdate": 1614350994
+  "task_id": "Task-74484551-70c0-41a1-a9f0-db36923379e2",
+  "queue": "queueName",
+  "state": "pending",
+  "last_update": 1614350994
 }
 ```
 
+If completed. When completed, the string result will be available for 5 minutes.
+
+```json
+{
+  "task_id": "Task-74484551-70c0-41a1-a9f0-db36923379e2",
+  "queue": "queueName",
+  "state": "pending",
+  "last_update": 1614350994,
+  "result": "some-string-payload"
+}
+```
 ### Next Task in queue
 
 ```bash
@@ -104,10 +117,11 @@ curl --request POST \
 
 ```json
 {
-  "TaskID": "Task-74484551-70c0-41a1-a9f0-db36923379e2",
-  "Queue": "queueName",
-  "State": "pending",
-  "LastUpdate": 1614350994
+  "task_id": "Task-74484551-70c0-41a1-a9f0-db36923379e2",
+  "queue": "queueName",
+  "state": "pending",
+  "last_update": 1614350994,
+  "payload": "some-string-payload"
 }
 ```
 ### Complete task
@@ -117,7 +131,8 @@ curl --request POST \
   --url http://localhost:8080/api/task/complete \
   --header 'Content-Type: application/json' \
   --data '{
-	"task_id": "Task-6b6fdc56-d9da-477f-b9ea-86f3493bae42"
+	"task_id": "Task-6b6fdc56-d9da-477f-b9ea-86f3493bae42",
+  "result": "some-string-payload"
 }'
 ```
 
