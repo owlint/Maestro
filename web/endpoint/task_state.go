@@ -11,6 +11,7 @@ import (
 // CompleteTaskRequest is the request to complete a task
 type CompleteTaskRequest struct {
 	TaskID string `json:"task_id"`
+	Result string `json:"result"`
 }
 
 // CompleteTaskResponse is the response of a task complete
@@ -25,7 +26,7 @@ func CompleteTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 		if err != nil {
 			return CompleteTaskResponse{err.Error()}, nil
 		}
-		err = svc.Complete(req.TaskID)
+		err = svc.Complete(req.TaskID, req.Result)
 		if err != nil {
 			return CompleteTaskResponse{err.Error()}, nil
 		}
@@ -37,6 +38,9 @@ func unmarshalCompleteTaskRequest(request interface{}) (*CompleteTaskRequest, er
 	req := request.(CompleteTaskRequest)
 	if req.TaskID == "" {
 		return nil, errors.New("task_id is a required parameter")
+	}
+	if req.Result == "" {
+		return nil, errors.New("result is a required parameter")
 	}
 	return &req, nil
 }

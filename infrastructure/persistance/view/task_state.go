@@ -9,10 +9,10 @@ import (
 
 // TaskState is a representation of the state of a task
 type TaskState struct {
-	TaskID     string `bson:"task_id"`
-	Queue      string `bson:"queue"`
-	State      string `bson:"state"`
-	LastUpdate int64  `bson:"last_update"`
+	TaskID     string `bson:"task_id" json:"task_id"`
+	Queue      string `bson:"queue" json:"queue"`
+	State      string `bson:"state" json:"state"`
+	LastUpdate int64  `bson:"last_update" json:"last_update"`
 }
 
 // TaskStateView is an interface representing possible queries on task states

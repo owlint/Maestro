@@ -16,21 +16,32 @@ type TaskStateRequest struct {
 // TaskStateResponse is the response of a task state
 type TaskStateResponse struct {
 	*view.TaskState
-	Error string `json:"error,omitempty"`
+	Payload string `json:"payload,omitempty"`
+	Result  string `json:"result,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 // TaskStateEndpoint creates a endpoint for task state
-func TaskStateEndpoint(svc view.TaskStateView) endpoint.Endpoint {
+func TaskStateEndpoint(svc view.TaskStateView, payloadView view.TaskPayloadView) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalTaskStateRequest(request)
 		if err != nil {
-			return TaskStateResponse{nil, err.Error()}, nil
+			return TaskStateResponse{nil, "", "", err.Error()}, nil
 		}
+		var result string = ""
 		state, err := svc.State(req.TaskID)
 		if err != nil {
-			return TaskStateResponse{nil, "Could not find this task"}, nil
+			return TaskStateResponse{nil, "", result, "Could not find this task"}, nil
 		}
-		return TaskStateResponse{state, ""}, nil
+
+		if state.State == "completed" {
+			result, err = payloadView.ResultFor(req.TaskID)
+			if err != nil {
+				return TaskStateResponse{state, "", result, "Result have expired"}, nil
+			}
+		}
+
+		return TaskStateResponse{state, "", result, ""}, nil
 	}
 }
 

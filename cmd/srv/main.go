@@ -8,8 +8,10 @@ import (
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/julienschmidt/httprouter"
 	"github.com/owlint/goddd"
+	"github.com/owlint/maestro/infrastructure/listener"
 	"github.com/owlint/maestro/infrastructure/persistance/drivers"
 	"github.com/owlint/maestro/infrastructure/persistance/projection"
+	"github.com/owlint/maestro/infrastructure/persistance/repository"
 	"github.com/owlint/maestro/infrastructure/persistance/view"
 	"github.com/owlint/maestro/infrastructure/services"
 	"github.com/owlint/maestro/web/endpoint"
@@ -19,13 +21,19 @@ import (
 func main() {
 	mongoClient, mongoDB := drivers.ConnectMongo()
 	defer mongoClient.Disconnect(context.TODO())
+	redisClient := drivers.ConnectRedis()
+	defer redisClient.Close()
 
 	eventPublisher := goddd.NewEventPublisher()
 	taskStateProjection := projection.NewTaskStateProjection(mongoDB)
+	payloadRepo := repository.NewPayloadRepository(redisClient)
 	eventPublisher.Register(taskStateProjection)
-	repo := goddd.NewExentStoreRepository("http://localhost:4000", eventPublisher)
+	taskFinishedListener := listener.NewTaskFinishedListener(payloadRepo)
+	eventPublisher.Register(taskFinishedListener)
+	taskRepo := goddd.NewExentStoreRepository("http://localhost:4000", &eventPublisher)
 	taskStateView := view.NewTaskStateView(mongoDB)
-	taskService := services.NewTaskService(&repo)
+	payloadView := view.NewTaskPayloadView(redisClient)
+	taskService := services.NewTaskService(&taskRepo, payloadRepo)
 
 	createTaskHandler := httptransport.NewServer(
 		endpoint.CreateTaskEndpoint(taskService),
@@ -33,7 +41,7 @@ func main() {
 		rest.EncodeJSONResponse,
 	)
 	taskStateHandler := httptransport.NewServer(
-		endpoint.TaskStateEndpoint(&taskStateView),
+		endpoint.TaskStateEndpoint(&taskStateView, payloadView),
 		rest.DecodeTaskStateRequest,
 		rest.EncodeJSONResponse,
 	)
@@ -53,7 +61,7 @@ func main() {
 		rest.EncodeJSONResponse,
 	)
 	queueNextTaskHandler := httptransport.NewServer(
-		endpoint.QueueNextEndpoint(taskService, &taskStateView),
+		endpoint.QueueNextEndpoint(taskService, &taskStateView, payloadView),
 		rest.DecodeQueueNextRequest,
 		rest.EncodeJSONResponse,
 	)

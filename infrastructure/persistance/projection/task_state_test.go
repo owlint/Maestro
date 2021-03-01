@@ -7,6 +7,7 @@ import (
 
 	"github.com/owlint/goddd"
 	"github.com/owlint/maestro/infrastructure/persistance/drivers"
+	"github.com/owlint/maestro/infrastructure/persistance/repository"
 	"github.com/owlint/maestro/infrastructure/services"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson"
@@ -35,7 +36,8 @@ func TestTaskCreation(t *testing.T) {
 	service := getTaskService(projection)
 
 	before := time.Now().Unix()
-	taskID := service.Create("name", 15, 2, []byte{})
+	taskID, err := service.Create("name", 15, 2, "")
+	assert.Nil(t, err)
 	task := taskByID(t, database, taskID)
 
 	assert.Equal(t, "name", task.Queue)
@@ -48,10 +50,11 @@ func TestTaskModified(t *testing.T) {
 	defer client.Disconnect(context.TODO())
 	projection := NewTaskStateProjection(database)
 	service := getTaskService(projection)
-	taskID := service.Create("name", 15, 2, []byte{})
+	taskID, err := service.Create("name", 15, 2, "")
+	assert.Nil(t, err)
 
 	before := time.Now().Unix()
-	err := service.Select(taskID)
+	err = service.Select(taskID)
 	task := taskByID(t, database, taskID)
 
 	assert.Nil(t, err)
@@ -64,8 +67,9 @@ func getTaskService(projection TaskStateProjection) services.TaskService {
 	publisher := goddd.NewEventPublisher()
 	publisher.Wait = true
 	publisher.Register(projection)
-	repo := goddd.NewInMemoryRepository(publisher)
-	return services.NewTaskService(&repo)
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis())
+	return services.NewTaskService(&taskRepo, payloadRepo)
 }
 
 func taskByID(t *testing.T, database *mongo.Database, taskID string) taskState {

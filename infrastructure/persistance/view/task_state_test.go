@@ -9,6 +9,7 @@ import (
 	"github.com/owlint/goddd"
 	"github.com/owlint/maestro/infrastructure/persistance/drivers"
 	"github.com/owlint/maestro/infrastructure/persistance/projection"
+	"github.com/owlint/maestro/infrastructure/persistance/repository"
 	"github.com/owlint/maestro/infrastructure/services"
 	"github.com/stretchr/testify/assert"
 )
@@ -23,11 +24,13 @@ func TestNext(t *testing.T) {
 	queue1 := uuid.New().String()
 	queue2 := uuid.New().String()
 
-	taskID1 := service.Create(queue1, 15, 2, []byte{})
+	taskID1, err := service.Create(queue1, 15, 2, "")
+	assert.Nil(t, err)
 	time.Sleep(1 * time.Second)
-	taskID2 := service.Create(queue2, 15, 2, []byte{})
+	taskID2, err := service.Create(queue2, 15, 2, "")
+	assert.Nil(t, err)
 	time.Sleep(1 * time.Second)
-	service.Create(queue1, 15, 2, []byte{})
+	service.Create(queue1, 15, 2, "")
 
 	nextTask, err := view.Next(queue1)
 	assert.Nil(t, err)
@@ -59,7 +62,8 @@ func TestState(t *testing.T) {
 	view := NewTaskStateView(database)
 
 	queue1 := uuid.New().String()
-	taskID1 := service.Create(queue1, 15, 2, []byte{})
+	taskID1, err := service.Create(queue1, 15, 2, "")
+	assert.Nil(t, err)
 
 	task, err := view.State(taskID1)
 	assert.Nil(t, err)
@@ -81,6 +85,7 @@ func getTaskService(projection projection.TaskStateProjection) services.TaskServ
 	publisher := goddd.NewEventPublisher()
 	publisher.Wait = true
 	publisher.Register(projection)
-	repo := goddd.NewInMemoryRepository(publisher)
-	return services.NewTaskService(&repo)
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis())
+	return services.NewTaskService(&taskRepo, payloadRepo)
 }

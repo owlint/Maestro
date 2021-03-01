@@ -13,6 +13,7 @@ type CreateTaskRequest struct {
 	Queue   string `json:"queue"`
 	Retries int32  `json:"retries"`
 	Timeout int32  `json:"timeout"`
+	Payload string `json:"payload"`
 }
 
 // CreateTaskResponse is the response of a task creation
@@ -28,7 +29,10 @@ func CreateTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 		if err != nil {
 			return CreateTaskResponse{"", err.Error()}, nil
 		}
-		taskID := svc.Create(req.Queue, req.Timeout, req.Retries, []byte{})
+		taskID, err := svc.Create(req.Queue, req.Timeout, req.Retries, req.Payload)
+		if err != nil {
+			return CreateTaskResponse{"", err.Error()}, nil
+		}
 		return CreateTaskResponse{taskID, ""}, nil
 	}
 }
@@ -43,6 +47,9 @@ func unmarshalCreateTaskRequest(request interface{}) (*CreateTaskRequest, error)
 	}
 	if req.Timeout <= 0 {
 		return nil, errors.New("timeout must be > 0")
+	}
+	if req.Payload == "" {
+		return nil, errors.New("payload is a required field")
 	}
 	return &req, nil
 }
