@@ -9,12 +9,13 @@ import (
 	"github.com/owlint/goddd"
 	"github.com/owlint/maestro/infrastructure/persistance/drivers"
 	"github.com/owlint/maestro/infrastructure/persistance/projection"
+	"github.com/owlint/maestro/infrastructure/persistance/repository"
 	"github.com/owlint/maestro/infrastructure/services"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNext(t *testing.T) {
-	client, database := drivers.ConnectMongo()
+	client, database := drivers.ConnectMongo(drivers.NewMongoOptions())
 	defer client.Disconnect(context.TODO())
 	projection := projection.NewTaskStateProjection(database)
 	service := getTaskService(projection)
@@ -23,11 +24,13 @@ func TestNext(t *testing.T) {
 	queue1 := uuid.New().String()
 	queue2 := uuid.New().String()
 
-	taskID1 := service.Create(queue1, 15, 2, []byte{})
+	taskID1, err := service.Create(queue1, 15, 2, "")
+	assert.Nil(t, err)
 	time.Sleep(1 * time.Second)
-	taskID2 := service.Create(queue2, 15, 2, []byte{})
+	taskID2, err := service.Create(queue2, 15, 2, "")
+	assert.Nil(t, err)
 	time.Sleep(1 * time.Second)
-	service.Create(queue1, 15, 2, []byte{})
+	service.Create(queue1, 15, 2, "")
 
 	nextTask, err := view.Next(queue1)
 	assert.Nil(t, err)
@@ -40,7 +43,7 @@ func TestNext(t *testing.T) {
 	assert.Equal(t, taskID2, nextTask.TaskID)
 }
 func TestNextEmpty(t *testing.T) {
-	client, database := drivers.ConnectMongo()
+	client, database := drivers.ConnectMongo(drivers.NewMongoOptions())
 	defer client.Disconnect(context.TODO())
 	view := NewTaskStateView(database)
 
@@ -51,10 +54,38 @@ func TestNextEmpty(t *testing.T) {
 	assert.Nil(t, nextTask)
 }
 
+func TestState(t *testing.T) {
+	client, database := drivers.ConnectMongo(drivers.NewMongoOptions())
+	defer client.Disconnect(context.TODO())
+	projection := projection.NewTaskStateProjection(database)
+	service := getTaskService(projection)
+	view := NewTaskStateView(database)
+
+	queue1 := uuid.New().String()
+	taskID1, err := service.Create(queue1, 15, 2, "")
+	assert.Nil(t, err)
+
+	task, err := view.State(taskID1)
+	assert.Nil(t, err)
+	assert.NotNil(t, task)
+}
+func TestStateUnknown(t *testing.T) {
+	client, database := drivers.ConnectMongo(drivers.NewMongoOptions())
+	defer client.Disconnect(context.TODO())
+	view := NewTaskStateView(database)
+
+	taskID := uuid.New().String()
+
+	task, err := view.State(taskID)
+	assert.NotNil(t, err)
+	assert.Nil(t, task)
+}
+
 func getTaskService(projection projection.TaskStateProjection) services.TaskService {
 	publisher := goddd.NewEventPublisher()
 	publisher.Wait = true
 	publisher.Register(projection)
-	repo := goddd.NewInMemoryRepository(publisher)
-	return services.NewTaskService(&repo)
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
+	return services.NewTaskService(&taskRepo, payloadRepo)
 }

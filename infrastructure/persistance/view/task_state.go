@@ -9,15 +9,16 @@ import (
 
 // TaskState is a representation of the state of a task
 type TaskState struct {
-	TaskID     string `bson:"task_id"`
-	Queue      string `bson:"queue"`
-	State      string `bson:"state"`
-	LastUpdate int64  `bson:"last_update"`
+	TaskID     string `bson:"task_id" json:"task_id"`
+	Queue      string `bson:"queue" json:"queue"`
+	State      string `bson:"state" json:"state"`
+	LastUpdate int64  `bson:"last_update" json:"last_update"`
 }
 
 // TaskStateView is an interface representing possible queries on task states
 type TaskStateView interface {
 	Next(queueName string) (*TaskState, error)
+	State(taskID string) (*TaskState, error)
 }
 
 // NewTaskStateView returns a TaskStateView
@@ -30,6 +31,19 @@ func NewTaskStateView(database *mongo.Database) TaskStateViewImpl {
 // TaskStateViewImpl is an implementation of TaskStateView
 type TaskStateViewImpl struct {
 	collection *mongo.Collection
+}
+
+// State returns the state of the given task
+func (v *TaskStateViewImpl) State(taskID string) (*TaskState, error) {
+	state := &TaskState{}
+	err := v.collection.FindOne(
+		context.TODO(),
+		bson.D{bson.E{Key: "task_id", Value: taskID}},
+	).Decode(state)
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 // Next returns the next scheduled task for this queue

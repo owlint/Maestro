@@ -7,9 +7,23 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func ConnectMongo() (*mongo.Client, *mongo.Database) {
+// MongoOptions is a configuration object for MongoDB
+type MongoOptions struct {
+	ConnectionURI string
+}
+
+// NewMongoOptions creates a new configuration object for mongodb
+// Default options are for development only
+func NewMongoOptions() MongoOptions {
+	return MongoOptions{
+		ConnectionURI: "mongodb://localhost:27017",
+	}
+}
+
+// ConnectMongo returns a connection to a mongodb instance
+func ConnectMongo(connectiOptions MongoOptions) (*mongo.Client, *mongo.Database) {
 	// Set client options
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017")
+	clientOptions := options.Client().ApplyURI(connectiOptions.ConnectionURI)
 
 	// Connect to MongoDB
 	client, e := mongo.Connect(context.TODO(), clientOptions)
