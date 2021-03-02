@@ -1,5 +1,7 @@
 # Maestro
 
+[![Go](https://github.com/owlint/Maestro/actions/workflows/go.yml/badge.svg)](https://github.com/owlint/Maestro/actions/workflows/go.yml)
+
 Maestro is a Task Scheduler written in Golang and supported by Owlint. 
 
 The main features of Maestro are :
