@@ -32,7 +32,7 @@ func main() {
 	eventPublisher.Register(taskStateProjection)
 	taskFinishedListener := listener.NewTaskFinishedListener(payloadRepo)
 	eventPublisher.Register(taskFinishedListener)
-	taskRepo := goddd.NewExentStoreRepository("http://localhost:4000", &eventPublisher)
+	taskRepo := goddd.NewExentStoreRepository(getExentStoreEndpointOptions(), &eventPublisher)
 	taskStateView := view.NewTaskStateView(mongoDB)
 	payloadView := view.NewTaskPayloadView(redisClient)
 	taskService := services.NewTaskService(&taskRepo, payloadRepo)
@@ -76,6 +76,13 @@ func main() {
 	router.Handler("POST", "/api/task/timeout", timeoutTaskHandler)
 	router.Handler("POST", "/api/queue/next", queueNextTaskHandler)
 	log.Fatal(http.ListenAndServe(":8080", router))
+}
+func getExentStoreEndpointOptions() string {
+	if val, exist := os.LookupEnv("EXENSTRORE_ENDPOINT"); exist {
+		return val
+	}
+
+	return "http://localhost:4000"
 }
 
 func getMongoConnectionOptions() drivers.MongoOptions {
