@@ -1,0 +1,42 @@
+name: Go
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.15
+
+      - name: Create mandatory .env
+        run: echo "SECRET=supersecret" > .env
+
+      - name: Start services
+        run: make docker.recreate
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: go test -v ./...
+
+      - uses: mr-smithers-excellent/docker-build-push@v5
+        name: Build & push Docker image
+        with:
+          image: owlint/maestro
+          tags: latest
+          registry: docker.io
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Start services
+        run: make docker.stop

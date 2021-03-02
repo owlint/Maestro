@@ -9,8 +9,8 @@ docker.recreate:
 	docker-compose rm -f
 	docker-compose up -d
 	sleep 10
-	docker-compose exec postgres psql -U postgres -c "CREATE DATABASE exentstore"
-	docker-compose exec exentstore bin/exentstore rpc "ExentStore.Release.migrate"
+	docker-compose exec -T postgres psql -U postgres -c "CREATE DATABASE exentstore"
+	docker-compose exec -T exentstore bin/exentstore rpc "ExentStore.Release.migrate"
 	docker-compose restart
 
 docker.build:
