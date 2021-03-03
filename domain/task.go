@@ -83,6 +83,18 @@ func (t *Task) Complete() error {
 	return nil
 }
 
+// Cancel mark a task as completed
+func (t *Task) Cancel() error {
+	if t.state != "running" && t.state != "pending" {
+		return errors.New("A task can be cancelled only if it is in running or pending state")
+	}
+
+	t.AddEvent(t, "StateChanged", &taskevents.StateChanged{State: "canceled"})
+	t.updated()
+
+	return nil
+}
+
 // Fail mark a task as failed
 func (t *Task) Fail() error {
 	if t.state != "running" {

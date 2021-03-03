@@ -78,6 +78,26 @@ func TestCompleteUnknown(t *testing.T) {
 	err := service.Complete(uuid.New().String(), "")
 	assert.NotNil(t, err)
 }
+func TestCancel(t *testing.T) {
+	service := NewTaskService(&taskRepo, payloadRepo)
+	taskID, err := service.Create("test", 3, 5, "")
+	assert.Nil(t, err)
+	err = service.Select(taskID)
+
+	err = service.Cancel(taskID)
+	assert.Nil(t, err)
+
+	task, err := loadTask(taskID)
+	assert.Nil(t, err)
+	assert.Equal(t, "canceled", task.State())
+}
+
+func TestCancelUnknown(t *testing.T) {
+	service := NewTaskService(&taskRepo, payloadRepo)
+
+	err := service.Cancel(uuid.New().String())
+	assert.NotNil(t, err)
+}
 func TestFail(t *testing.T) {
 	service := NewTaskService(&taskRepo, payloadRepo)
 	taskID, err := service.Create("test", 3, 1, "")

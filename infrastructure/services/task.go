@@ -13,6 +13,7 @@ type TaskService interface {
 	Create(taskQueue string, timeout int32, retry int32, payload string) (string, error)
 	Select(taskID string) error
 	Fail(taskID string) error
+	Cancel(taskID string) error
 	Timeout(taskID string) error
 	Complete(taskID string, result string) error
 }
@@ -144,4 +145,30 @@ func (s TaskServiceImpl) Complete(taskID string, result string) error {
 	}
 
 	return s.payloadRepo.SaveResult(taskID, result)
+}
+
+// Cancel marks a task as canceled
+func (s TaskServiceImpl) Cancel(taskID string) error {
+	if exist, err := s.taskRepo.Exists(taskID); !exist || err != nil {
+		return fmt.Errorf("Could not find task : %s (or error occured)", taskID)
+	}
+
+	stream := goddd.NewEventStream()
+	task := domain.Task{EventStream: &stream}
+	err := s.taskRepo.Load(taskID, &task)
+	if err != nil {
+		return err
+	}
+
+	err = task.Cancel()
+	if err != nil {
+		return err
+	}
+
+	err = s.taskRepo.Save(&task)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

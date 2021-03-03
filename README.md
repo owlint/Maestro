@@ -129,6 +129,16 @@ curl --request POST \
 }'
 ```
 
+### Cancel task
+
+```bash
+curl --request POST \
+  --url http://localhost:8080/api/task/cancel \
+  --header 'Content-Type: application/json' \
+  --data '{
+	"task_id": "Task-6b6fdc56-d9da-477f-b9ea-86f3493bae42"
+}'
+```
 ### Timeout task
 
 ```bash
