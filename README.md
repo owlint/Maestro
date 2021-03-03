@@ -20,6 +20,11 @@ The main features of Maestro are :
 * MongoDB : For persistant data projections
 * Redis : For non persistant data storage (Task Payload and result)
 
+## How does tasks work ?
+Once a task is created, its state automaticaly evolves following the following state diagram : 
+
+![](documentation/assets/task_states.png)
+
 
 ## Run
 
