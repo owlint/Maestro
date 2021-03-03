@@ -33,6 +33,8 @@ func (s TaskStateProjection) OnEvent(event goddd.Event) {
 		s.setTaskQueue(event)
 	case "StateChanged":
 		s.changeState(event)
+	case "TimeoutChanged":
+		s.changeTimeout(event)
 	case "Updated":
 		s.updated(event)
 	}
@@ -45,7 +47,8 @@ func (s TaskStateProjection) create(taskID string) {
 			primitive.E{Key: "task_id", Value: taskID},
 			primitive.E{Key: "queue", Value: ""},
 			primitive.E{Key: "state", Value: ""},
-			primitive.E{Key: "last_update", Value: int64(0)},
+			primitive.E{Key: "timeout", Value: int(64)},
+			primitive.E{Key: "last_update", Value: int32(0)},
 		},
 	)
 }
@@ -71,6 +74,19 @@ func (s TaskStateProjection) changeState(event goddd.Event) {
 			bson.D{bson.E{Key: "task_id", Value: event.ObjectId()}},
 			bson.D{bson.E{Key: "$set", Value: bson.D{
 				bson.E{Key: "state", Value: payload.State},
+			}}},
+		)
+	}
+}
+
+func (s TaskStateProjection) changeTimeout(event goddd.Event) {
+	payload := &taskevents.TimeoutChanged{}
+	if err := proto.Unmarshal(event.Payload(), payload); err == nil {
+		s.collection.UpdateOne(
+			context.TODO(),
+			bson.D{bson.E{Key: "task_id", Value: event.ObjectId()}},
+			bson.D{bson.E{Key: "$set", Value: bson.D{
+				bson.E{Key: "timeout", Value: payload.Timeout},
 			}}},
 		)
 	}

@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var publisher goddd.EventPublisher = goddd.NewEventPublisher()
-var taskRepo goddd.InMemoryRepository = goddd.NewInMemoryRepository(&publisher)
-var payloadRepo repository.PayloadRepository = repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
-
 func TestCreate(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 
 	taskID, err := service.Create("test", 3, 5, "")
@@ -27,6 +27,10 @@ func TestCreate(t *testing.T) {
 	assert.True(t, exist)
 }
 func TestPayloadExists(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 
 	taskID, err := service.Create("test", 3, 5, "12345")
@@ -40,6 +44,10 @@ func TestPayloadExists(t *testing.T) {
 }
 
 func TestSelect(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 	taskID, err := service.Create("test", 3, 5, "")
 	assert.Nil(t, err)
@@ -47,18 +55,26 @@ func TestSelect(t *testing.T) {
 	err = service.Select(taskID)
 	assert.Nil(t, err)
 
-	task, err := loadTask(taskID)
+	task, err := loadTask(&taskRepo, taskID)
 	assert.Nil(t, err)
 	assert.Equal(t, "running", task.State())
 }
 
 func TestSelectUnknown(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 
 	err := service.Select(uuid.New().String())
 	assert.NotNil(t, err)
 }
 func TestComplete(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 	taskID, err := service.Create("test", 3, 5, "")
 	assert.Nil(t, err)
@@ -67,18 +83,26 @@ func TestComplete(t *testing.T) {
 	err = service.Complete(taskID, "")
 	assert.Nil(t, err)
 
-	task, err := loadTask(taskID)
+	task, err := loadTask(&taskRepo, taskID)
 	assert.Nil(t, err)
 	assert.Equal(t, "completed", task.State())
 }
 
 func TestCompleteUnknown(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 
 	err := service.Complete(uuid.New().String(), "")
 	assert.NotNil(t, err)
 }
 func TestCancel(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 	taskID, err := service.Create("test", 3, 5, "")
 	assert.Nil(t, err)
@@ -87,18 +111,26 @@ func TestCancel(t *testing.T) {
 	err = service.Cancel(taskID)
 	assert.Nil(t, err)
 
-	task, err := loadTask(taskID)
+	task, err := loadTask(&taskRepo, taskID)
 	assert.Nil(t, err)
 	assert.Equal(t, "canceled", task.State())
 }
 
 func TestCancelUnknown(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 
 	err := service.Cancel(uuid.New().String())
 	assert.NotNil(t, err)
 }
 func TestFail(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 	taskID, err := service.Create("test", 3, 1, "")
 	assert.Nil(t, err)
@@ -107,13 +139,17 @@ func TestFail(t *testing.T) {
 	err = service.Fail(taskID)
 	assert.Nil(t, err)
 
-	task, err := loadTask(taskID)
+	task, err := loadTask(&taskRepo, taskID)
 	assert.Nil(t, err)
 	assert.Equal(t, "pending", task.State())
 	assert.Equal(t, int32(1), task.Retries())
 }
 
 func TestFailed(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 	taskID, err := service.Create("test", 3, 1, "")
 	assert.Nil(t, err)
@@ -124,18 +160,26 @@ func TestFailed(t *testing.T) {
 	err = service.Fail(taskID)
 	assert.Nil(t, err)
 
-	task, err := loadTask(taskID)
+	task, err := loadTask(&taskRepo, taskID)
 	assert.Nil(t, err)
 	assert.Equal(t, "failed", task.State())
 	assert.Equal(t, int32(1), task.Retries())
 }
 func TestFailedUnknown(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 
 	err := service.Fail(uuid.New().String())
 	assert.NotNil(t, err)
 }
 func TestTimeout(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 	taskID, err := service.Create("test", 3, 1, "")
 	assert.Nil(t, err)
@@ -144,13 +188,17 @@ func TestTimeout(t *testing.T) {
 	err = service.Timeout(taskID)
 	assert.Nil(t, err)
 
-	task, err := loadTask(taskID)
+	task, err := loadTask(&taskRepo, taskID)
 	assert.Nil(t, err)
 	assert.Equal(t, "pending", task.State())
 	assert.Equal(t, int32(1), task.Retries())
 }
 
 func TestTimeouted(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 	taskID, err := service.Create("test", 3, 1, "")
 	assert.Nil(t, err)
@@ -161,24 +209,28 @@ func TestTimeouted(t *testing.T) {
 	err = service.Timeout(taskID)
 	assert.Nil(t, err)
 
-	task, err := loadTask(taskID)
+	task, err := loadTask(&taskRepo, taskID)
 	assert.Nil(t, err)
 	assert.Equal(t, "timedout", task.State())
 	assert.Equal(t, int32(1), task.Retries())
 }
 func TestTimeoutedUnknown(t *testing.T) {
+	publisher := goddd.NewEventPublisher()
+	publisher.Wait = true
+	taskRepo := goddd.NewInMemoryRepository(&publisher)
+	payloadRepo := repository.NewPayloadRepository(drivers.ConnectRedis(drivers.NewRedisOptions()))
 	service := NewTaskService(&taskRepo, payloadRepo)
 
 	err := service.Timeout(uuid.New().String())
 	assert.NotNil(t, err)
 }
 
-func loadTask(taskID string) (*domain.Task, error) {
+func loadTask(repo goddd.Repository, taskID string) (*domain.Task, error) {
 	stream := goddd.NewEventStream()
 	task := domain.Task{
 		EventStream: &stream,
 	}
-	err := taskRepo.Load(taskID, &task)
+	err := repo.Load(taskID, &task)
 
 	if err != nil {
 		return nil, err

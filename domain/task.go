@@ -113,11 +113,11 @@ func (t *Task) Fail() error {
 
 // Timeout mark a task as timedout
 func (t *Task) Timeout() error {
-	if t.state != "running" {
-		return errors.New("A task can be timed out only if it is in running state")
+	if t.state != "running" && t.state != "pending" {
+		return errors.New("A task can be timed out only if it is in pending/running state")
 	}
 
-	if t.retries < t.maxRetries {
+	if t.retries < t.maxRetries && t.state != "pending" {
 		t.retry()
 	} else {
 		t.AddEvent(t, "StateChanged", &taskevents.StateChanged{State: "timedout"})
