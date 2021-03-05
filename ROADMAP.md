@@ -1,7 +1,7 @@
 # Roadmap
 Maestro is at a very early stage of development, not really usable and thus **NOT PRODUCTION READY**.
 
-### v0.1.0:  Actual
+### v0.1.0
 
 * Tasks can be created (**without** payload)
 * Tasks can be got by workers from queue
@@ -11,7 +11,7 @@ Maestro is at a very early stage of development, not really usable and thus **NO
 * Cron tasks are not yet implemented
 * Cancel is not yet implemented
 
-### v1.0.0
+### v1.0.0 : Current
 
 * Tasks can be created (**with** payload)
 * Tasks can be got by workers from queue

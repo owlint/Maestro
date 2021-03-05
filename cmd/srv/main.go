@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/julienschmidt/httprouter"
@@ -36,6 +38,19 @@ func main() {
 	taskStateView := view.NewTaskStateView(mongoDB)
 	payloadView := view.NewTaskPayloadView(redisClient)
 	taskService := services.NewTaskService(&taskRepo, payloadRepo)
+	taskTimeoutService := services.NewTaskTimeoutService(taskService, &taskStateView)
+
+	go func() {
+		for {
+			err := taskTimeoutService.TimeoutTasks()
+			if err != nil {
+				fmt.Println(
+					fmt.Sprintf("Error while setting timeouts : %s", err.Error()),
+				)
+			}
+			time.Sleep(1 * time.Second)
+		}
+	}()
 
 	createTaskHandler := httptransport.NewServer(
 		endpoint.CreateTaskEndpoint(taskService),
@@ -57,6 +72,11 @@ func main() {
 		rest.DecodeFailRequest,
 		rest.EncodeJSONResponse,
 	)
+	cancelTaskHandler := httptransport.NewServer(
+		endpoint.CancelTaskEndpoint(taskService),
+		rest.DecodeCancelRequest,
+		rest.EncodeJSONResponse,
+	)
 	timeoutTaskHandler := httptransport.NewServer(
 		endpoint.TimeoutTaskEndpoint(taskService),
 		rest.DecodeTimeoutRequest,
@@ -72,11 +92,13 @@ func main() {
 	router.Handler("POST", "/api/task/create", createTaskHandler)
 	router.Handler("POST", "/api/task/get", taskStateHandler)
 	router.Handler("POST", "/api/task/complete", completeTaskHandler)
+	router.Handler("POST", "/api/task/cancel", cancelTaskHandler)
 	router.Handler("POST", "/api/task/fail", failTaskHandler)
 	router.Handler("POST", "/api/task/timeout", timeoutTaskHandler)
 	router.Handler("POST", "/api/queue/next", queueNextTaskHandler)
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
+
 func getExentStoreEndpointOptions() string {
 	if val, exist := os.LookupEnv("EXENSTRORE_ENDPOINT"); exist {
 		return val

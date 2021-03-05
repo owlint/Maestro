@@ -1,21 +1,21 @@
 package view
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/go-redis/redis"
 	"github.com/google/uuid"
-	"github.com/owlint/goddd"
 	"github.com/owlint/maestro/infrastructure/persistance/drivers"
-	"github.com/owlint/maestro/infrastructure/persistance/repository"
-	"github.com/owlint/maestro/infrastructure/services"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetPayload(t *testing.T) {
-	service, view := getDeps()
+	redisClient := drivers.ConnectRedis(drivers.NewRedisOptions())
+	view := NewTaskPayloadView(redisClient)
 
-	taskID, err := service.Create("name", 3, 0, "123")
-	assert.Nil(t, err)
+	taskID := fmt.Sprintf("Task-%s", uuid.New().String())
+	createPayload(*redisClient, taskID, "123")
 
 	payload, err := view.PayloadFor(taskID)
 	assert.Nil(t, err)
@@ -23,21 +23,19 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestGetUnknownPayload(t *testing.T) {
-	_, view := getDeps()
+	redisClient := drivers.ConnectRedis(drivers.NewRedisOptions())
+	view := NewTaskPayloadView(redisClient)
 
 	payload, err := view.PayloadFor(uuid.New().String())
 	assert.NotNil(t, err)
 	assert.Zero(t, payload)
 }
 func TestGetResult(t *testing.T) {
-	service, view := getDeps()
+	redisClient := drivers.ConnectRedis(drivers.NewRedisOptions())
+	view := NewTaskPayloadView(redisClient)
 
-	taskID, err := service.Create("name", 3, 0, "123")
-	assert.Nil(t, err)
-	err = service.Select(taskID)
-	assert.Nil(t, err)
-	err = service.Complete(taskID, "123")
-	assert.Nil(t, err)
+	taskID := fmt.Sprintf("Task-%s", uuid.New().String())
+	createResult(*redisClient, taskID, "123")
 
 	payload, err := view.ResultFor(taskID)
 	assert.Nil(t, err)
@@ -45,32 +43,18 @@ func TestGetResult(t *testing.T) {
 }
 
 func TestGetUnknownResult(t *testing.T) {
-	_, view := getDeps()
+	redisClient := drivers.ConnectRedis(drivers.NewRedisOptions())
+	view := NewTaskPayloadView(redisClient)
 
 	payload, err := view.ResultFor(uuid.New().String())
 	assert.NotNil(t, err)
 	assert.Zero(t, payload)
 }
 
-func TestGetNotFinishedResult(t *testing.T) {
-	service, view := getDeps()
-
-	taskID, err := service.Create("name", 3, 0, "123")
-	assert.Nil(t, err)
-
-	payload, err := view.ResultFor(taskID)
-	assert.NotNil(t, err)
-	assert.Zero(t, payload)
+func createPayload(client redis.Client, taskID string, payload string) error {
+	return client.Set(fmt.Sprintf("Payload-%s", taskID), payload, 0).Err()
 }
 
-func getDeps() (services.TaskService, TaskPayloadView) {
-	publisher := goddd.NewEventPublisher()
-	publisher.Wait = true
-	taskRepo := goddd.NewInMemoryRepository(&publisher)
-	redisClient := drivers.ConnectRedis(drivers.NewRedisOptions())
-	payloadRepo := repository.NewPayloadRepository(redisClient)
-	service := services.NewTaskService(&taskRepo, payloadRepo)
-	view := NewTaskPayloadView(redisClient)
-
-	return service, view
+func createResult(client redis.Client, taskID string, payload string) error {
+	return client.Set(fmt.Sprintf("Result-%s", taskID), payload, 0).Err()
 }

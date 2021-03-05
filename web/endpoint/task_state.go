@@ -45,6 +45,39 @@ func unmarshalCompleteTaskRequest(request interface{}) (*CompleteTaskRequest, er
 	return &req, nil
 }
 
+// CancelTaskRequest is the request to complete a task
+type CancelTaskRequest struct {
+	TaskID string `json:"task_id"`
+}
+
+// CancelTaskResponse is the response of a task complete
+type CancelTaskResponse struct {
+	Error string `json:"error,omitempty"`
+}
+
+// CancelTaskEndpoint creates a endpoint for task complete
+func CancelTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
+	return func(_ context.Context, request interface{}) (interface{}, error) {
+		req, err := unmarshalCancelTaskRequest(request)
+		if err != nil {
+			return CancelTaskResponse{err.Error()}, nil
+		}
+		err = svc.Cancel(req.TaskID)
+		if err != nil {
+			return CancelTaskResponse{err.Error()}, nil
+		}
+		return CancelTaskResponse{""}, nil
+	}
+}
+
+func unmarshalCancelTaskRequest(request interface{}) (*CancelTaskRequest, error) {
+	req := request.(CancelTaskRequest)
+	if req.TaskID == "" {
+		return nil, errors.New("task_id is a required parameter")
+	}
+	return &req, nil
+}
+
 // FailTaskRequest is the request to complete a task
 type FailTaskRequest struct {
 	TaskID string `json:"task_id"`

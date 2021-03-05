@@ -111,3 +111,36 @@ func testFailUnauthorized(t *testing.T) {
 
 	assert.NotNil(t, err)
 }
+
+func TestCancelRunning(t *testing.T) {
+	task := NewTask("test", 10, 1)
+	task.Select()
+
+	err := task.Cancel()
+	assert.Nil(t, err)
+
+	assert.Nil(t, err)
+	assert.Equal(t, "canceled", task.state)
+	assert.Equal(t, int32(0), task.retries)
+}
+
+func TestCancelPending(t *testing.T) {
+	task := NewTask("test", 10, 1)
+
+	err := task.Cancel()
+	assert.Nil(t, err)
+
+	assert.Nil(t, err)
+	assert.Equal(t, "canceled", task.state)
+	assert.Equal(t, int32(0), task.retries)
+}
+
+func TestCancelOther(t *testing.T) {
+	task := NewTask("test", 10, 0)
+	task.Select()
+	task.Fail()
+	assert.Equal(t, "failed", task.state)
+
+	err := task.Cancel()
+	assert.NotNil(t, err)
+}
