@@ -10,6 +10,7 @@ import (
 
 // CreateTaskRequest is a request to create a task
 type CreateTaskRequest struct {
+	Owner   string `json:"owner"`
 	Queue   string `json:"queue"`
 	Retries int32  `json:"retries"`
 	Timeout int32  `json:"timeout"`
@@ -29,7 +30,7 @@ func CreateTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 		if err != nil {
 			return CreateTaskResponse{"", err.Error()}, nil
 		}
-		taskID, err := svc.Create(req.Queue, req.Timeout, req.Retries, req.Payload)
+		taskID, err := svc.Create(req.Owner, req.Queue, req.Timeout, req.Retries, req.Payload)
 		if err != nil {
 			return CreateTaskResponse{"", err.Error()}, nil
 		}

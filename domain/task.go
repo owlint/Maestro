@@ -3,50 +3,116 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
-	"github.com/owlint/goddd"
-	"github.com/owlint/maestro/pb/taskevents"
-	"google.golang.org/protobuf/proto"
+	"github.com/google/uuid"
 )
 
 // Task is a task to be executed
 type Task struct {
-	goddd.EventStream
-
 	TaskID     string
+	owner      string
 	taskQueue  string
+	payload    string
 	state      string
 	timeout    int32
 	retries    int32
 	maxRetries int32
 	createdAt  int64
 	updatedAt  int64
+	result     string
 }
 
 // NewTask creates a new task
-func NewTask(taskQueue string, timeout int32, maxRetries int32) *Task {
-	stream := goddd.NewEventStream()
-	t := Task{
-		EventStream: &stream,
+func NewTask(owner string, taskQueue string, payload string, timeout int32, maxRetries int32) *Task {
+	taskID := fmt.Sprintf("Task-%s", uuid.New().String())
+	return &Task{
+		TaskID:     taskID,
+		owner:      owner,
+		payload:    payload,
+		taskQueue:  taskQueue,
+		state:      "pending",
+		timeout:    timeout,
+		retries:    0,
+		maxRetries: maxRetries,
+		createdAt:  time.Now().Unix(),
+		updatedAt:  time.Now().Unix(),
+	}
+}
+
+func TaskFromStringMap(data map[string]string) (*Task, error) {
+	timeout, err := strconv.ParseInt(data["timeout"], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+	retries, err := strconv.ParseInt(data["retries"], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+	maxRetries, err := strconv.ParseInt(data["maxRetries"], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+	createdAt, err := strconv.ParseInt(data["created_at"], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	updatedAt, err := strconv.ParseInt(data["updated_at"], 10, 64)
+	if err != nil {
+		return nil, err
 	}
 
-	identity := goddd.NewIdentity("Task")
-	t.TaskID = identity
-	t.AddEvent(&t, "TaskIDSet", &taskevents.TaskIDSet{TaskID: identity})
-	t.AddEvent(&t, "TaskQueueChanged", &taskevents.TaskQueueChanged{TaskQueue: taskQueue})
-	t.AddEvent(&t, "StateChanged", &taskevents.StateChanged{State: "pending"})
-	t.AddEvent(&t, "TimeoutChanged", &taskevents.TimeoutChanged{Timeout: timeout})
-	t.AddEvent(&t, "MaxRetriesSet", &taskevents.MaxRetriesSet{MaxRetries: maxRetries})
-	t.AddEvent(&t, "Created", &taskevents.Created{Timestamp: time.Now().Unix()})
-	t.AddEvent(&t, "Updated", &taskevents.Updated{Timestamp: time.Now().Unix()})
+	task := &Task{
+		TaskID:     data["task_id"],
+		owner:      data["owner"],
+		payload:    data["payload"],
+		taskQueue:  data["task_queue"],
+		state:      data["state"],
+		timeout:    int32(timeout),
+		retries:    int32(retries),
+		maxRetries: int32(maxRetries),
+		createdAt:  createdAt,
+		updatedAt:  updatedAt,
+	}
 
-	return &t
+	if result, present := data["result"]; present {
+		task.result = result
+	}
+
+	return task, nil
 }
 
 // ObjectID returns the ID of this task
 func (t *Task) ObjectID() string {
 	return t.TaskID
+}
+
+func (t *Task) MaxRetries() int32 {
+	return t.maxRetries
+}
+
+func (t *Task) CreatedAt() int64 {
+	return t.createdAt
+}
+
+func (t *Task) UpdatedAt() int64 {
+	return t.updatedAt
+}
+
+// Owner returns the owner of this task
+func (t *Task) Owner() string {
+	return t.owner
+}
+
+// Queue returns the queue name of this task
+func (t *Task) Queue() string {
+	return t.taskQueue
+}
+
+// Queue returns the queue name of this task
+func (t *Task) Payload() string {
+	return t.payload
 }
 
 // State returns the state of the task
@@ -62,25 +128,32 @@ func (t *Task) Retries() int32 {
 // Select mark a task as selected by a worker
 func (t *Task) Select() error {
 	if t.state != "pending" {
-		return errors.New("A task can be selected only if it is in pending state")
+		return fmt.Errorf("A task can be selected only if it is in pending state : %s", t.state)
 	}
-
-	t.AddEvent(t, "StateChanged", &taskevents.StateChanged{State: "running"})
+	t.state = "running"
 	t.updated()
 
 	return nil
 }
 
 // Complete mark a task as completed
-func (t *Task) Complete() error {
+func (t *Task) Complete(result string) error {
 	if t.state != "running" {
 		return errors.New("A task can be completed only if it is in running state")
 	}
-
-	t.AddEvent(t, "StateChanged", &taskevents.StateChanged{State: "completed"})
+	t.state = "completed"
+	t.result = result
 	t.updated()
 
 	return nil
+}
+
+// Result returns the result of the task if it is completed and an error otherwise
+func (t *Task) Result() (string, error) {
+	if t.state != "completed" {
+		return "", errors.New("You can only have the result of a completed task")
+	}
+	return t.result, nil
 }
 
 // Cancel mark a task as completed
@@ -88,8 +161,7 @@ func (t *Task) Cancel() error {
 	if t.state != "running" && t.state != "pending" {
 		return errors.New("A task can be cancelled only if it is in running or pending state")
 	}
-
-	t.AddEvent(t, "StateChanged", &taskevents.StateChanged{State: "canceled"})
+	t.state = "canceled"
 	t.updated()
 
 	return nil
@@ -104,23 +176,27 @@ func (t *Task) Fail() error {
 	if t.retries < t.maxRetries {
 		t.retry()
 	} else {
-		t.AddEvent(t, "StateChanged", &taskevents.StateChanged{State: "failed"})
+		t.state = "failed"
 		t.updated()
 	}
 
 	return nil
 }
 
+func (t *Task) GetTimeout() int32 {
+	return t.timeout
+}
+
 // Timeout mark a task as timedout
 func (t *Task) Timeout() error {
 	if t.state != "running" && t.state != "pending" {
-		return errors.New("A task can be timed out only if it is in pending/running state")
+		return fmt.Errorf("Task %s can be timed out only if it is in pending/running state", t.TaskID)
 	}
 
 	if t.retries < t.maxRetries && t.state != "pending" {
 		t.retry()
 	} else {
-		t.AddEvent(t, "StateChanged", &taskevents.StateChanged{State: "timedout"})
+		t.state = "timedout"
 		t.updated()
 	}
 
@@ -128,77 +204,11 @@ func (t *Task) Timeout() error {
 }
 
 func (t *Task) updated() {
-	t.AddEvent(t, "Updated", &taskevents.Updated{Timestamp: time.Now().Unix()})
+	t.updatedAt = time.Now().Unix()
 }
 
 func (t *Task) retry() {
-	t.AddEvent(t, "StateChanged", &taskevents.StateChanged{State: "pending"})
-	t.AddEvent(t, "Retried", &taskevents.Retried{Retries: t.retries + 1})
+	t.state = "pending"
+	t.retries += 1
 	t.updated()
-}
-
-// Apply applies to given event to the object
-func (t *Task) Apply(eventName string, event []byte) error {
-	switch eventName {
-	case "TaskIDSet":
-		payload := &taskevents.TaskIDSet{}
-		err := proto.Unmarshal(event, payload)
-		if err != nil {
-			return err
-		}
-		t.TaskID = payload.TaskID
-	case "StateChanged":
-		payload := &taskevents.StateChanged{}
-		err := proto.Unmarshal(event, payload)
-		if err != nil {
-			return err
-		}
-		t.state = payload.State
-	case "TimeoutChanged":
-		payload := &taskevents.TimeoutChanged{}
-		err := proto.Unmarshal(event, payload)
-		if err != nil {
-			return err
-		}
-		t.timeout = payload.Timeout
-	case "MaxRetriesSet":
-		payload := &taskevents.MaxRetriesSet{}
-		err := proto.Unmarshal(event, payload)
-		if err != nil {
-			return err
-		}
-		t.maxRetries = payload.MaxRetries
-	case "Created":
-		payload := &taskevents.Created{}
-		err := proto.Unmarshal(event, payload)
-		if err != nil {
-			return err
-		}
-		t.createdAt = payload.Timestamp
-	case "Updated":
-		payload := &taskevents.Updated{}
-		err := proto.Unmarshal(event, payload)
-		if err != nil {
-			return err
-		}
-		t.updatedAt = payload.Timestamp
-	case "Retried":
-		payload := &taskevents.Retried{}
-		err := proto.Unmarshal(event, payload)
-		if err != nil {
-			return err
-		}
-		t.retries = payload.Retries
-	case "TaskQueueChanged":
-		payload := &taskevents.TaskQueueChanged{}
-		err := proto.Unmarshal(event, payload)
-		if err != nil {
-			return err
-		}
-		t.taskQueue = payload.TaskQueue
-	default:
-		return fmt.Errorf("Unknown event %s", eventName)
-	}
-
-	return nil
 }

@@ -1,27 +1,6 @@
 version: "3"
 
 services:
-  exentstore:
-    image: registry.gitlab.com/mwillema/exentstore:latest
-    environment:
-      - DATABASE_URL=ecto://postgres:postgres@postgres/exentstore
-      - SECRET_KEY_BASE=${SECRET}
-    ports:
-      - 4000:4000
-
-  postgres:
-    image: postgres:12.4-alpine
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-    ports:
-      - 5432:5432
-
-  mongo:
-    image: mongo
-    ports:
-      - 27017:27017
-
   redis:
     image: redis
     ports:

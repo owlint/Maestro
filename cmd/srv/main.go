@@ -1,20 +1,17 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
+	"github.com/bsm/redislock"
+	"github.com/go-kit/kit/log"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/julienschmidt/httprouter"
-	"github.com/owlint/goddd"
-	"github.com/owlint/maestro/infrastructure/listener"
 	"github.com/owlint/maestro/infrastructure/persistance/drivers"
-	"github.com/owlint/maestro/infrastructure/persistance/projection"
 	"github.com/owlint/maestro/infrastructure/persistance/repository"
 	"github.com/owlint/maestro/infrastructure/persistance/view"
 	"github.com/owlint/maestro/infrastructure/services"
@@ -23,67 +20,81 @@ import (
 )
 
 func main() {
-	mongoClient, mongoDB := drivers.ConnectMongo(getMongoConnectionOptions())
-	defer mongoClient.Disconnect(context.TODO())
 	redisClient := drivers.ConnectRedis(getRedisConnectionOptions())
 	defer redisClient.Close()
+	locker := redislock.New(redisClient)
+	logger := log.NewJSONLogger(os.Stderr)
 
-	eventPublisher := goddd.NewEventPublisher()
-	taskStateProjection := projection.NewTaskStateProjection(mongoDB)
-	payloadRepo := repository.NewPayloadRepository(redisClient)
-	eventPublisher.Register(taskStateProjection)
-	taskFinishedListener := listener.NewTaskFinishedListener(payloadRepo)
-	eventPublisher.Register(taskFinishedListener)
-	taskRepo := goddd.NewExentStoreRepository(getExentStoreEndpointOptions(), &eventPublisher)
-	taskStateView := view.NewTaskStateView(mongoDB)
-	payloadView := view.NewTaskPayloadView(redisClient)
-	taskService := services.NewTaskService(&taskRepo, payloadRepo)
-	taskTimeoutService := services.NewTaskTimeoutService(taskService, &taskStateView)
+	view := view.NewTaskViewLocker(locker, view.NewTaskView(redisClient))
+	repo := repository.NewTaskRepository(redisClient)
+	taskService := services.NewTaskServiceLocker(
+		locker,
+		services.NewTaskServiceLogger(
+			log.With(logger, "layer", "service"),
+			services.NewTaskService(repo, view),
+		),
+	)
+	taskTimeoutService := services.NewTaskTimeoutService(taskService, view)
 
 	go func() {
 		for {
 			err := taskTimeoutService.TimeoutTasks()
 			if err != nil {
-				fmt.Println(
-					fmt.Sprintf("Error while setting timeouts : %s", err.Error()),
+				fmt.Printf(
+					"Error while setting timeouts : %s", err.Error(),
 				)
 			}
 			time.Sleep(1 * time.Second)
 		}
 	}()
 
+	endpointLogger := log.With(logger, "layer", "endpoint")
 	createTaskHandler := httptransport.NewServer(
-		endpoint.CreateTaskEndpoint(taskService),
+		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "create_task"))(
+			endpoint.CreateTaskEndpoint(taskService),
+		),
 		rest.DecodeCreateTaskRequest,
 		rest.EncodeJSONResponse,
 	)
 	taskStateHandler := httptransport.NewServer(
-		endpoint.TaskStateEndpoint(&taskStateView, payloadView),
+		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "get_task"))(
+			endpoint.TaskStateEndpoint(view),
+		),
 		rest.DecodeTaskStateRequest,
 		rest.EncodeJSONResponse,
 	)
 	completeTaskHandler := httptransport.NewServer(
-		endpoint.CompleteTaskEndpoint(taskService),
+		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "complete_task"))(
+			endpoint.CompleteTaskEndpoint(taskService),
+		),
 		rest.DecodeCompleteRequest,
 		rest.EncodeJSONResponse,
 	)
 	failTaskHandler := httptransport.NewServer(
-		endpoint.FailTaskEndpoint(taskService),
+		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "fail_task"))(
+			endpoint.FailTaskEndpoint(taskService),
+		),
 		rest.DecodeFailRequest,
 		rest.EncodeJSONResponse,
 	)
 	cancelTaskHandler := httptransport.NewServer(
-		endpoint.CancelTaskEndpoint(taskService),
+		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "cancel_task"))(
+			endpoint.CancelTaskEndpoint(taskService),
+		),
 		rest.DecodeCancelRequest,
 		rest.EncodeJSONResponse,
 	)
 	timeoutTaskHandler := httptransport.NewServer(
-		endpoint.TimeoutTaskEndpoint(taskService),
+		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "fail_task"))(
+			endpoint.TimeoutTaskEndpoint(taskService),
+		),
 		rest.DecodeTimeoutRequest,
 		rest.EncodeJSONResponse,
 	)
 	queueNextTaskHandler := httptransport.NewServer(
-		endpoint.QueueNextEndpoint(taskService, &taskStateView, payloadView),
+		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "next"))(
+			endpoint.QueueNextEndpoint(taskService, view, locker),
+		),
 		rest.DecodeQueueNextRequest,
 		rest.EncodeJSONResponse,
 	)
@@ -96,7 +107,7 @@ func main() {
 	router.Handler("POST", "/api/task/fail", failTaskHandler)
 	router.Handler("POST", "/api/task/timeout", timeoutTaskHandler)
 	router.Handler("POST", "/api/queue/next", queueNextTaskHandler)
-	log.Fatal(http.ListenAndServe(":8080", router))
+	logger.Log(http.ListenAndServe(":8080", router))
 }
 
 func getExentStoreEndpointOptions() string {
@@ -105,16 +116,6 @@ func getExentStoreEndpointOptions() string {
 	}
 
 	return "http://localhost:4000"
-}
-
-func getMongoConnectionOptions() drivers.MongoOptions {
-	options := drivers.NewMongoOptions()
-
-	if val, exist := os.LookupEnv("MONGO_URI"); exist {
-		options.ConnectionURI = val
-	}
-
-	return options
 }
 
 func getRedisConnectionOptions() drivers.RedisOptions {
