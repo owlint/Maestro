@@ -98,6 +98,13 @@ func main() {
 		rest.DecodeQueueNextRequest,
 		rest.EncodeJSONResponse,
 	)
+	healthcheckHandler := httptransport.NewServer(
+		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "healthcheck"))(
+			endpoint.HealthcheckEndpoint(),
+		),
+		rest.DecodeHealthcheckRequest,
+		rest.EncodeJSONResponse,
+	)
 
 	router := httprouter.New()
 	router.Handler("POST", "/api/task/create", createTaskHandler)
@@ -107,15 +114,8 @@ func main() {
 	router.Handler("POST", "/api/task/fail", failTaskHandler)
 	router.Handler("POST", "/api/task/timeout", timeoutTaskHandler)
 	router.Handler("POST", "/api/queue/next", queueNextTaskHandler)
+	router.Handler("GET", "/api/healthcheck", healthcheckHandler)
 	logger.Log(http.ListenAndServe(":8080", router))
-}
-
-func getExentStoreEndpointOptions() string {
-	if val, exist := os.LookupEnv("EXENSTRORE_ENDPOINT"); exist {
-		return val
-	}
-
-	return "http://localhost:4000"
 }
 
 func getRedisConnectionOptions() drivers.RedisOptions {
