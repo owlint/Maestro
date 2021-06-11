@@ -55,3 +55,52 @@ func unmarshalCreateTaskRequest(request interface{}) (*CreateTaskRequest, error)
 	}
 	return &req, nil
 }
+
+// CreateTasListkRequest is a request to create a task
+type CreateTaskListRequest struct {
+	Tasks []CreateTaskRequest `json:"tasks"`
+}
+
+// CreateTaskResponse is the response of a task creation
+type CreateTaskListResponse struct {
+	TaskIDs []string `json:"task_ids"`
+	Error   string   `json:"error,omitempty"`
+}
+
+// CreateTaskEndpoint creates the endpoint that create a task
+func CreateTaskListEndpoint(svc services.TaskService) endpoint.Endpoint {
+	return func(_ context.Context, request interface{}) (interface{}, error) {
+		req, err := unmarshalCreateTaskListRequest(request)
+		if err != nil {
+			return CreateTaskResponse{"", err.Error()}, taskerrors.ValidationError{err}
+		}
+		taskIDs := make([]string, len(req.Tasks))
+		for i, task := range req.Tasks {
+			taskID, err := svc.Create(task.Owner, task.Queue, task.Timeout, task.Retries, task.Payload)
+			if err != nil {
+				return CreateTaskResponse{"", err.Error()}, err
+			}
+			taskIDs[i] = taskID
+		}
+		return CreateTaskListResponse{taskIDs, ""}, nil
+	}
+}
+
+func unmarshalCreateTaskListRequest(request interface{}) (*CreateTaskListRequest, error) {
+	req := request.(CreateTaskListRequest)
+	for _, task := range req.Tasks {
+		if task.Queue == "" {
+			return nil, errors.New("queue is a taskuired parameter")
+		}
+		if task.Retries < 0 {
+			return nil, errors.New("retries must be >= 0")
+		}
+		if task.Timeout <= 0 {
+			return nil, errors.New("timeout must be > 0")
+		}
+		if task.Payload == "" {
+			return nil, errors.New("payload is a taskuired field")
+		}
+	}
+	return &req, nil
+}

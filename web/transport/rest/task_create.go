@@ -16,3 +16,12 @@ func DecodeCreateTaskRequest(_ context.Context, r *http.Request) (interface{}, e
 	}
 	return request, nil
 }
+
+// DecodeCreateTaskListRequest decode a create task request
+func DecodeCreateTaskListRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var request endpoint.CreateTaskListRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		return nil, err
+	}
+	return request, nil
+}

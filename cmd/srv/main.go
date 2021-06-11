@@ -58,6 +58,14 @@ func main() {
 		rest.EncodeJSONResponse,
 		errorEncoder,
 	)
+	createTaskListHandler := httptransport.NewServer(
+		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "create_task_list"))(
+			endpoint.CreateTaskListEndpoint(taskService),
+		),
+		rest.DecodeCreateTaskListRequest,
+		rest.EncodeJSONResponse,
+		errorEncoder,
+	)
 	taskStateHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "get_task"))(
 			endpoint.TaskStateEndpoint(view),
@@ -117,6 +125,7 @@ func main() {
 
 	router := httprouter.New()
 	router.Handler("POST", "/api/task/create", createTaskHandler)
+	router.Handler("POST", "/api/task/create/list", createTaskListHandler)
 	router.Handler("POST", "/api/task/get", taskStateHandler)
 	router.Handler("POST", "/api/task/complete", completeTaskHandler)
 	router.Handler("POST", "/api/task/cancel", cancelTaskHandler)
