@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/go-kit/kit/endpoint"
+	taskerrors "github.com/owlint/maestro/errors"
 	"github.com/owlint/maestro/infrastructure/services"
 )
 
@@ -24,11 +25,11 @@ func CompleteTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalCompleteTaskRequest(request)
 		if err != nil {
-			return CompleteTaskResponse{err.Error()}, nil
+			return CompleteTaskResponse{err.Error()}, taskerrors.ValidationError{err}
 		}
 		err = svc.Complete(req.TaskID, req.Result)
 		if err != nil {
-			return CompleteTaskResponse{err.Error()}, nil
+			return CompleteTaskResponse{err.Error()}, err
 		}
 		return CompleteTaskResponse{""}, nil
 	}
@@ -60,11 +61,11 @@ func CancelTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalCancelTaskRequest(request)
 		if err != nil {
-			return CancelTaskResponse{err.Error()}, nil
+			return CancelTaskResponse{err.Error()}, taskerrors.ValidationError{err}
 		}
 		err = svc.Cancel(req.TaskID)
 		if err != nil {
-			return CancelTaskResponse{err.Error()}, nil
+			return CancelTaskResponse{err.Error()}, err
 		}
 		return CancelTaskResponse{""}, nil
 	}
@@ -93,11 +94,11 @@ func FailTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalFailTaskRequest(request)
 		if err != nil {
-			return FailTaskResponse{err.Error()}, nil
+			return FailTaskResponse{err.Error()}, taskerrors.ValidationError{err}
 		}
 		err = svc.Fail(req.TaskID)
 		if err != nil {
-			return FailTaskResponse{err.Error()}, nil
+			return FailTaskResponse{err.Error()}, err
 		}
 		return FailTaskResponse{""}, nil
 	}
@@ -126,11 +127,11 @@ func TimeoutTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalTimeoutTaskRequest(request)
 		if err != nil {
-			return TimeoutTaskResponse{err.Error()}, nil
+			return TimeoutTaskResponse{err.Error()}, taskerrors.ValidationError{err}
 		}
 		err = svc.Timeout(req.TaskID)
 		if err != nil {
-			return TimeoutTaskResponse{err.Error()}, nil
+			return TimeoutTaskResponse{err.Error()}, err
 		}
 		return TimeoutTaskResponse{""}, nil
 	}

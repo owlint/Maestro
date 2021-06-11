@@ -8,6 +8,7 @@ import (
 	"github.com/bsm/redislock"
 	"github.com/go-kit/kit/endpoint"
 	"github.com/owlint/maestro/domain"
+	taskerrors "github.com/owlint/maestro/errors"
 	"github.com/owlint/maestro/infrastructure/persistance/view"
 	"github.com/owlint/maestro/infrastructure/services"
 )
@@ -26,7 +27,7 @@ func QueueNextEndpoint(
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalQueueNextRequest(request)
 		if err != nil {
-			return TaskStateResponse{nil, err.Error()}, nil
+			return TaskStateResponse{nil, err.Error()}, taskerrors.ValidationError{err}
 		}
 
 		selected := false
@@ -34,27 +35,33 @@ func QueueNextEndpoint(
 		var next *domain.Task
 		for !selected {
 			next, err = stateView.NextInQueue(ctx, req.Queue)
-			if err != nil {
-				return TaskStateResponse{nil, err.Error()}, nil
+			if err == redislock.ErrNotObtained {
+				err = nil
+				next = nil
+			} else if err != nil {
+				return TaskStateResponse{nil, err.Error()}, err
 			}
+
 			if next == nil {
 				return TaskStateResponse{nil, ""}, nil
 			}
 
 			lock, err := acquire(locker, ctx, next.TaskID)
-			if err != nil {
-				return TaskStateResponse{nil, err.Error()}, nil
+			if err == redislock.ErrNotObtained {
+				return TaskStateResponse{nil, ""}, nil
+			} else if err != nil {
+				return TaskStateResponse{nil, err.Error()}, err
 			}
 
 			next, err = stateView.ByID(ctx, next.TaskID)
 			if err != nil {
-				return TaskStateResponse{nil, err.Error()}, nil
+				return TaskStateResponse{nil, err.Error()}, err
 			}
 
 			if next.State() == "pending" {
 				err = svc.Select(next.TaskID)
 				if err != nil {
-					return TaskStateResponse{nil, err.Error()}, nil
+					return TaskStateResponse{nil, err.Error()}, err
 				}
 				selected = true
 				lock.Release(ctx)

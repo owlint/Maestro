@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-kit/kit/endpoint"
 	"github.com/owlint/maestro/domain"
+	taskerrors "github.com/owlint/maestro/errors"
 	"github.com/owlint/maestro/infrastructure/persistance/view"
 )
 
@@ -39,12 +40,12 @@ func TaskStateEndpoint(svc view.TaskView) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalTaskStateRequest(request)
 		if err != nil {
-			return TaskStateResponse{nil, err.Error()}, nil
+			return TaskStateResponse{nil, err.Error()}, taskerrors.ValidationError{err}
 		}
 
 		task, err := svc.ByID(ctx, req.TaskID)
 		if err != nil {
-			return TaskStateResponse{nil, err.Error()}, nil
+			return TaskStateResponse{nil, err.Error()}, err
 		}
 
 		taskDTO := fromTask(task)

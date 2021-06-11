@@ -47,14 +47,16 @@ func main() {
 			time.Sleep(1 * time.Second)
 		}
 	}()
-
+	errorEncoder := httptransport.ServerErrorEncoder(rest.EncodeError)
 	endpointLogger := log.With(logger, "layer", "endpoint")
+
 	createTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "create_task"))(
 			endpoint.CreateTaskEndpoint(taskService),
 		),
 		rest.DecodeCreateTaskRequest,
 		rest.EncodeJSONResponse,
+		errorEncoder,
 	)
 	taskStateHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "get_task"))(
@@ -62,6 +64,7 @@ func main() {
 		),
 		rest.DecodeTaskStateRequest,
 		rest.EncodeJSONResponse,
+		errorEncoder,
 	)
 	completeTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "complete_task"))(
@@ -69,6 +72,7 @@ func main() {
 		),
 		rest.DecodeCompleteRequest,
 		rest.EncodeJSONResponse,
+		errorEncoder,
 	)
 	failTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "fail_task"))(
@@ -76,6 +80,7 @@ func main() {
 		),
 		rest.DecodeFailRequest,
 		rest.EncodeJSONResponse,
+		errorEncoder,
 	)
 	cancelTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "cancel_task"))(
@@ -83,6 +88,7 @@ func main() {
 		),
 		rest.DecodeCancelRequest,
 		rest.EncodeJSONResponse,
+		errorEncoder,
 	)
 	timeoutTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "fail_task"))(
@@ -90,6 +96,7 @@ func main() {
 		),
 		rest.DecodeTimeoutRequest,
 		rest.EncodeJSONResponse,
+		errorEncoder,
 	)
 	queueNextTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "next"))(
@@ -97,6 +104,7 @@ func main() {
 		),
 		rest.DecodeQueueNextRequest,
 		rest.EncodeJSONResponse,
+		errorEncoder,
 	)
 	healthcheckHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "healthcheck"))(
@@ -104,6 +112,7 @@ func main() {
 		),
 		rest.DecodeHealthcheckRequest,
 		rest.EncodeJSONResponse,
+		errorEncoder,
 	)
 
 	router := httprouter.New()

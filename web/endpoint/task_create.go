@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/go-kit/kit/endpoint"
+	taskerrors "github.com/owlint/maestro/errors"
 	"github.com/owlint/maestro/infrastructure/services"
 )
 
@@ -28,11 +29,11 @@ func CreateTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalCreateTaskRequest(request)
 		if err != nil {
-			return CreateTaskResponse{"", err.Error()}, nil
+			return CreateTaskResponse{"", err.Error()}, taskerrors.ValidationError{err}
 		}
 		taskID, err := svc.Create(req.Owner, req.Queue, req.Timeout, req.Retries, req.Payload)
 		if err != nil {
-			return CreateTaskResponse{"", err.Error()}, nil
+			return CreateTaskResponse{"", err.Error()}, err
 		}
 		return CreateTaskResponse{taskID, ""}, nil
 	}
