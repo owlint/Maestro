@@ -16,7 +16,7 @@ func TestTimeOutTasks(t *testing.T) {
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view)
+	service := NewTaskService(taskRepo, view, 300)
 
 	taskIDs := make([]string, 0)
 	for i := 0; i < 10; i++ {

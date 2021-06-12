@@ -20,6 +20,7 @@ import (
 )
 
 func main() {
+	expirationTime := getResultExpirationTime()
 	redisClient := drivers.ConnectRedis(getRedisConnectionOptions())
 	defer redisClient.Close()
 	locker := redislock.New(redisClient)
@@ -31,7 +32,7 @@ func main() {
 		locker,
 		services.NewTaskServiceLogger(
 			log.With(logger, "layer", "service"),
-			services.NewTaskService(repo, view),
+			services.NewTaskService(repo, view, expirationTime),
 		),
 	)
 	taskTimeoutService := services.NewTaskTimeoutService(taskService, view)
@@ -134,6 +135,17 @@ func main() {
 	router.Handler("POST", "/api/queue/next", queueNextTaskHandler)
 	router.Handler("GET", "/api/healthcheck", healthcheckHandler)
 	logger.Log(http.ListenAndServe(":8080", router))
+}
+
+func getResultExpirationTime() int {
+	if val, exist := os.LookupEnv("RESULT_EXPIRATION"); exist {
+		expiration, err := strconv.Atoi(val)
+		if err != nil {
+			panic(err)
+		}
+		return expiration
+	}
+	return 300
 }
 
 func getRedisConnectionOptions() drivers.RedisOptions {

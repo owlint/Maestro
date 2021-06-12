@@ -25,15 +25,17 @@ type TaskService interface {
 
 // TaskServiceImpl is an implementation of TaskService
 type TaskServiceImpl struct {
-	repo repository.TaskRepository
-	view view.TaskView
+	repo             repository.TaskRepository
+	view             view.TaskView
+	resultExpiration int
 }
 
 // NewTaskService creates a new TaskService
-func NewTaskService(repository repository.TaskRepository, view view.TaskView) TaskServiceImpl {
+func NewTaskService(repository repository.TaskRepository, view view.TaskView, resultExpiration int) TaskServiceImpl {
 	return TaskServiceImpl{
-		repo: repository,
-		view: view,
+		repo:             repository,
+		view:             view,
+		resultExpiration: resultExpiration,
 	}
 }
 
@@ -148,7 +150,7 @@ func (s TaskServiceImpl) Complete(taskID string, result string) error {
 		return err
 	}
 
-	return s.repo.SetTTL(ctx, taskID, 300)
+	return s.repo.SetTTL(ctx, taskID, s.resultExpiration)
 }
 
 // Cancel marks a task as canceled
