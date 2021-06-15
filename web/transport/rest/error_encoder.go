@@ -14,6 +14,8 @@ func EncodeError(_ context.Context, err error, w http.ResponseWriter) {
 	switch err.(type) {
 	case errors.ValidationError:
 		w.WriteHeader(http.StatusNotAcceptable)
+	case errors.NotFoundError:
+		w.WriteHeader(http.StatusNotFound)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}

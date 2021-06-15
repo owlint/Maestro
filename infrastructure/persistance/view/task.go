@@ -9,6 +9,7 @@ import (
 	"github.com/bsm/redislock"
 	"github.com/go-redis/redis/v8"
 	"github.com/owlint/maestro/domain"
+	taskerror "github.com/owlint/maestro/errors"
 )
 
 type TaskView interface {
@@ -55,7 +56,7 @@ func (v TaskViewImpl) ByID(ctx context.Context, taskID string) (*domain.Task, er
 	}
 
 	if len(keys) != 1 {
-		return nil, errors.New("There is zero or more than one task with this ID")
+		return nil, taskerror.NotFoundError{errors.New("Zero or more than one task correspond")}
 	}
 
 	dataCmd := v.redis.HGetAll(ctx, keys[0])
