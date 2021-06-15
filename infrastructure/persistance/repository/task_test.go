@@ -47,3 +47,26 @@ func TestSave(t *testing.T) {
 	assert.Equal(t, shouldBe, values)
 
 }
+func TestDelete(t *testing.T) {
+	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
+	repo := TaskRepository{redis: redis}
+	queueName := uuid.New().String()
+	task := domain.NewTask("laurent", queueName, "payload", 15, 1)
+
+	err := repo.Save(context.Background(), *task)
+	assert.Nil(t, err)
+
+	keysCmd := redis.Keys(context.Background(), fmt.Sprintf("%s-*", queueName))
+	assert.Nil(t, keysCmd.Err())
+	result, err := keysCmd.Result()
+	assert.Nil(t, err)
+	assert.Len(t, result, 1)
+
+	err = repo.Delete(context.Background(), task.TaskID)
+	assert.Nil(t, err)
+	keysCmd = redis.Keys(context.Background(), fmt.Sprintf("%s-*", queueName))
+	assert.Nil(t, keysCmd.Err())
+	result, err = keysCmd.Result()
+	assert.Nil(t, err)
+	assert.Len(t, result, 0)
+}

@@ -21,6 +21,7 @@ type TaskService interface {
 	Cancel(taskID string) error
 	Timeout(taskID string) error
 	Complete(taskID string, result string) error
+	Delete(taskID string) error
 }
 
 // TaskServiceImpl is an implementation of TaskService
@@ -68,6 +69,11 @@ func (s TaskServiceImpl) Select(taskID string) error {
 	}
 
 	return s.repo.Save(ctx, *task)
+}
+
+// Delete deletes a task
+func (s TaskServiceImpl) Delete(taskID string) error {
+	return s.repo.Delete(context.Background(), taskID)
 }
 
 // Fail marks a task as failed
@@ -226,6 +232,16 @@ func (l TaskServiceLogger) Fail(taskID string) error {
 
 	return err
 }
+func (l TaskServiceLogger) Delete(taskID string) error {
+	err := l.next.Delete(taskID)
+	l.logger.Log(
+		"action", "Delete",
+		"error", err,
+		"task_id", taskID,
+	)
+
+	return err
+}
 func (l TaskServiceLogger) Cancel(taskID string) error {
 	err := l.next.Cancel(taskID)
 	defer func() {
@@ -278,6 +294,9 @@ func (l TaskServiceLocker) Create(owner string, taskQueue string, timeout int32,
 }
 func (l TaskServiceLocker) Select(taskID string) error {
 	return l.next.Select(taskID)
+}
+func (l TaskServiceLocker) Delete(taskID string) error {
+	return l.next.Delete(taskID)
 }
 func (l TaskServiceLocker) Fail(taskID string) error {
 	ctx := context.Background()

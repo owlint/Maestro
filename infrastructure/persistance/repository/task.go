@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	"github.com/owlint/maestro/domain"
+	taskerror "github.com/owlint/maestro/errors"
 )
 
 type TaskRepository struct {
@@ -54,9 +55,28 @@ func (r TaskRepository) SetTTL(ctx context.Context, taskID string, ttl int) erro
 	}
 
 	if len(keys) != 1 {
-		return errors.New("No single task match this id")
+		return taskerror.NotFoundError{errors.New("No single task match this id")}
 	}
 
 	expireCmd := r.redis.Expire(ctx, keys[0], time.Duration(ttl)*time.Second)
+	return expireCmd.Err()
+}
+
+func (r TaskRepository) Delete(ctx context.Context, taskID string) error {
+	keysCmd := r.redis.Keys(ctx, fmt.Sprintf("*-%s", taskID))
+	if keysCmd.Err() != nil {
+		return keysCmd.Err()
+	}
+
+	keys, err := keysCmd.Result()
+	if err != nil {
+		return err
+	}
+
+	if len(keys) != 1 {
+		return taskerror.NotFoundError{errors.New("No single task match this id")}
+	}
+
+	expireCmd := r.redis.Del(ctx, keys[0])
 	return expireCmd.Err()
 }

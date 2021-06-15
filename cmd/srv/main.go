@@ -83,6 +83,14 @@ func main() {
 		rest.EncodeJSONResponse,
 		errorEncoder,
 	)
+	deleteTaskHandler := httptransport.NewServer(
+		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "delete_task"))(
+			endpoint.DeleteTaskEndpoint(taskService),
+		),
+		rest.DecodeDeleteTaskRequest,
+		rest.EncodeJSONResponse,
+		errorEncoder,
+	)
 	failTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "fail_task"))(
 			endpoint.FailTaskEndpoint(taskService),
@@ -131,6 +139,7 @@ func main() {
 	router.Handler("POST", "/api/task/complete", completeTaskHandler)
 	router.Handler("POST", "/api/task/cancel", cancelTaskHandler)
 	router.Handler("POST", "/api/task/fail", failTaskHandler)
+	router.Handler("POST", "/api/task/delete", deleteTaskHandler)
 	router.Handler("POST", "/api/task/timeout", timeoutTaskHandler)
 	router.Handler("POST", "/api/queue/next", queueNextTaskHandler)
 	router.Handler("GET", "/api/healthcheck", healthcheckHandler)
