@@ -122,8 +122,8 @@ func (v TaskViewImpl) InQueue(ctx context.Context, queue string) ([]*domain.Task
 		return nil, err
 	}
 
-	tasks := make([]*domain.Task, len(keys))
-	for i, key := range keys {
+	tasks := make([]*domain.Task, 0)
+	for _, key := range keys {
 		dataCmd := v.redis.HGetAll(ctx, key)
 		if dataCmd.Err() != nil {
 			return nil, dataCmd.Err()
@@ -134,11 +134,13 @@ func (v TaskViewImpl) InQueue(ctx context.Context, queue string) ([]*domain.Task
 			return nil, err
 		}
 
-		task, err := domain.TaskFromStringMap(data)
-		if err != nil {
-			return nil, err
+		if len(data) != 0 {
+			task, err := domain.TaskFromStringMap(data)
+			if err != nil {
+				return nil, err
+			}
+			tasks = append(tasks, task)
 		}
-		tasks[i] = task
 	}
 
 	return tasks, nil
