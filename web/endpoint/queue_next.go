@@ -78,7 +78,7 @@ func acquire(locker *redislock.Client, ctx context.Context, name string) (*redis
 	backoff := redislock.LimitRetry(redislock.LinearBackoff(100*time.Millisecond), 3)
 
 	// Obtain lock with retry
-	lock, err := locker.Obtain(ctx, name, time.Second, &redislock.Options{
+	lock, err := locker.Obtain(ctx, name, 2*time.Second, &redislock.Options{
 		RetryStrategy: backoff,
 	})
 	if err == redislock.ErrNotObtained {
