@@ -35,7 +35,7 @@ jobs:
 
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
-        if: github.base_ref == "main"
+        if: $github.base_ref == 'main'
         with:
           image: owlint/maestro
           tags: latest,${{github.base_ref}}
@@ -45,7 +45,7 @@ jobs:
 
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
-        if: github.base_ref == "dev"
+        if: $github.base_ref == 'dev'
         with:
           image: owlint/maestro
           tags: latest,${{github.base_ref}}
