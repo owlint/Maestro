@@ -143,7 +143,16 @@ func main() {
 	router.Handler("POST", "/api/task/timeout", timeoutTaskHandler)
 	router.Handler("POST", "/api/queue/next", queueNextTaskHandler)
 	router.Handler("GET", "/api/healthcheck", healthcheckHandler)
-	logger.Log(http.ListenAndServe(":8080", router))
+
+	server := http.Server{
+		Addr:         ":8080",
+		Handler:      router,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+		IdleTimeout:  3 * time.Second,
+	}
+
+	logger.Log(server.ListenAndServe())
 }
 
 func getResultExpirationTime() int {
