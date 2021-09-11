@@ -137,6 +137,14 @@ func main() {
 		rest.EncodeJSONResponse,
 		errorEncoder,
 	)
+	queueConsumeTaskHandler := httptransport.NewServer(
+		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "next"))(
+			endpoint.ConsumeQueueEndpoint(taskService),
+		),
+		rest.DecodeConsumeQueueRequest,
+		rest.EncodeJSONResponse,
+		errorEncoder,
+	)
 	queueStatsHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "stats"))(
 			endpoint.QueueStatsEndpoint(view),
@@ -165,6 +173,7 @@ func main() {
 	router.Handler("POST", "/api/task/timeout", timeoutTaskHandler)
 	router.Handler("POST", "/api/queue/next", queueNextTaskHandler)
 	router.Handler("POST", "/api/queue/stats", queueStatsHandler)
+	router.Handler("POST", "/api/queue/results/consume", queueConsumeTaskHandler)
 	router.Handler("GET", "/api/healthcheck", healthcheckHandler)
     router.Handler("GET", "/metrics", promhttp.Handler())
 	logger.Log(http.ListenAndServe(":8080", router))

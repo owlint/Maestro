@@ -94,3 +94,37 @@ func unmarshalQueueNextRequest(request interface{}) (*QueueNextRequest, error) {
 	req := request.(QueueNextRequest)
 	return &req, nil
 }
+
+// ConsumeQueueRequest is a request to get the next task in the queue
+type ConsumeQueueRequest struct {
+	Queue string `json:"queue"`
+}
+
+// ConsumeQueueEndpoint creates a endpoint for get next on queue
+func ConsumeQueueEndpoint(
+	svc services.TaskService,
+) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req, err := unmarshalConsumeQueueRequest(request)
+		if err != nil {
+			return TaskStateResponse{nil, err.Error()}, taskerrors.ValidationError{err}
+		}
+
+        next, err := svc.ConsumeQueueResult(req.Queue)
+        if err != nil {
+			return TaskStateResponse{nil, err.Error()}, taskerrors.NotFoundError{err}
+        }
+
+        if next == nil {
+            return TaskStateResponse{nil, ""}, nil
+        }
+
+		taskDTO := fromTask(next)
+		return TaskStateResponse{&taskDTO, ""}, nil
+	}
+}
+
+func unmarshalConsumeQueueRequest(request interface{}) (*ConsumeQueueRequest, error) {
+	req := request.(ConsumeQueueRequest)
+	return &req, nil
+}

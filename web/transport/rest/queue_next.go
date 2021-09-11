@@ -16,3 +16,12 @@ func DecodeQueueNextRequest(_ context.Context, r *http.Request) (interface{}, er
 	}
 	return request, nil
 }
+
+// DecodeConsumeQueueRequest decode a queue next request
+func DecodeConsumeQueueRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var request endpoint.ConsumeQueueRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		return nil, err
+	}
+	return request, nil
+}
