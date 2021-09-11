@@ -17,6 +17,7 @@ type TaskView interface {
 	ByID(ctx context.Context, taskID string) (*domain.Task, error)
 	NextInQueue(ctx context.Context, queue string) (*domain.Task, error)
 	InQueue(ctx context.Context, queue string) ([]*domain.Task, error)
+	QueueStats(ctx context.Context, queue string) (map[string][]string, error)
 	TimedOut(ctx context.Context) ([]*domain.Task, error)
 }
 
@@ -78,12 +79,12 @@ func (v TaskViewImpl) NextInQueue(ctx context.Context, queue string) (*domain.Ta
 		return nil, err
 	}
 
-    now := time.Now().Unix()
+	now := time.Now().Unix()
 	oldestByOwner := make(map[string]*domain.Task)
 	ownerLastRunAt := make(map[string]int64)
 	for _, task := range tasks {
 		if t, exists := oldestByOwner[task.Owner()]; task.State() == "pending" &&
-            task.NotBefore() <= now &&
+			task.NotBefore() <= now &&
 			(!exists || task.UpdatedAt() < t.UpdatedAt()) {
 			oldestByOwner[task.Owner()] = task
 		}
@@ -107,7 +108,7 @@ func (v TaskViewImpl) NextInQueue(ctx context.Context, queue string) (*domain.Ta
 	for owner, lastModificationAt := range ownerLastRunAt {
 		if _, havePendingTask := oldestByOwner[owner]; havePendingTask && lastModificationAt < oldestModificationAt {
 			selectedOwner = owner
-            oldestModificationAt = lastModificationAt
+			oldestModificationAt = lastModificationAt
 		}
 	}
 
@@ -147,6 +148,57 @@ func (v TaskViewImpl) InQueue(ctx context.Context, queue string) ([]*domain.Task
 	}
 
 	return tasks, nil
+}
+
+func (v TaskViewImpl) QueueStats(ctx context.Context, queue string) (map[string][]string, error) {
+	keysCmd := v.redis.Keys(ctx, fmt.Sprintf("%s-*", queue))
+	if keysCmd.Err() != nil {
+		return nil, keysCmd.Err()
+	}
+
+	keys, err := keysCmd.Result()
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().Unix()
+	stats := map[string][]string {
+        "planned": make([]string, 0),
+        "pending": make([]string, 0),
+        "running": make([]string, 0),
+        "completed": make([]string, 0),
+        "canceled": make([]string, 0),
+        "failed": make([]string, 0),
+        "timedout": make([]string, 0),
+    }
+	for _, key := range keys {
+		dataCmd := v.redis.HGetAll(ctx, key)
+		if dataCmd.Err() != nil {
+			return nil, dataCmd.Err()
+		}
+
+		data, err := dataCmd.Result()
+		if err != nil {
+			return nil, err
+		}
+
+		if len(data) != 0 {
+			task, err := domain.TaskFromStringMap(data)
+			if err != nil {
+				return nil, err
+			}
+
+			state := task.State()
+
+			if state == "pending" && task.NotBefore() > now {
+				state = "planned"
+			}
+
+			stats[state] = append(stats[state], task.TaskID)
+		}
+	}
+
+	return stats, nil
 }
 
 func (v TaskViewImpl) TimedOut(ctx context.Context) ([]*domain.Task, error) {
@@ -222,6 +274,10 @@ func (v TaskViewLocker) NextInQueue(ctx context.Context, queue string) (*domain.
 
 func (v TaskViewLocker) InQueue(ctx context.Context, queue string) ([]*domain.Task, error) {
 	return v.next.InQueue(ctx, queue)
+}
+
+func (v TaskViewLocker) QueueStats(ctx context.Context, queue string) (map[string][]string, error) {
+    return v.next.QueueStats(ctx, queue)
 }
 
 func (v TaskViewLocker) TimedOut(ctx context.Context) ([]*domain.Task, error) {

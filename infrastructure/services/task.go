@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"time"
 
+    "github.com/google/uuid"
 	"github.com/bsm/redislock"
 	"github.com/go-kit/kit/log"
 	"github.com/owlint/maestro/domain"
 	"github.com/owlint/maestro/infrastructure/persistance/repository"
 	"github.com/owlint/maestro/infrastructure/persistance/view"
+	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 )
 
 // TaskService is a service to manage tasks
@@ -291,6 +293,9 @@ func (l TaskServiceLogger) Complete(taskID string, result string) error {
 	return err
 }
 
+// ############################################################################
+//                                 Locking Middleware
+// ############################################################################
 type TaskServiceLocker struct {
 	locker *redislock.Client
 	next   TaskService
@@ -353,4 +358,84 @@ func (l TaskServiceLocker) acquire(ctx context.Context, name string) (*redislock
 	}
 
 	return lock, nil
+}
+// ############################################################################
+//                            Instrumenting Middleware
+// ############################################################################
+type TaskServiceInstrumenter struct {
+    instanceID string
+    counter *kitprometheus.Counter
+	next   TaskService
+}
+
+func NewTaskServiceInstrumenter(counter *kitprometheus.Counter, next TaskService) TaskServiceInstrumenter {
+	return TaskServiceInstrumenter{
+        instanceID: uuid.New().String(),
+        counter: counter,
+		next:   next,
+	}
+}
+
+func (l TaskServiceInstrumenter) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error) {
+	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore)
+	defer func() {
+        lvs := []string{"state", "pending", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		l.counter.With(lvs...).Add(1)
+	}()
+
+	return result, err
+}
+func (l TaskServiceInstrumenter) Select(taskID string) error {
+	err := l.next.Select(taskID)
+	defer func() {
+        lvs := []string{"state", "running", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		l.counter.With(lvs...).Add(1)
+	}()
+
+	return err
+}
+func (l TaskServiceInstrumenter) Fail(taskID string) error {
+	err := l.next.Fail(taskID)
+	defer func() {
+        lvs := []string{"state", "failed", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		l.counter.With(lvs...).Add(1)
+	}()
+
+	return err
+}
+func (l TaskServiceInstrumenter) Delete(taskID string) error {
+	err := l.next.Delete(taskID)
+	defer func() {
+        lvs := []string{"state", "deleted", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		l.counter.With(lvs...).Add(1)
+	}()
+
+	return err
+}
+func (l TaskServiceInstrumenter) Cancel(taskID string) error {
+	err := l.next.Cancel(taskID)
+	defer func() {
+        lvs := []string{"state", "canceled", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		l.counter.With(lvs...).Add(1)
+	}()
+
+	return err
+}
+func (l TaskServiceInstrumenter) Timeout(taskID string) error {
+	err := l.next.Timeout(taskID)
+	defer func() {
+        lvs := []string{"state", "timedout", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		l.counter.With(lvs...).Add(1)
+	}()
+
+	return err
+}
+func (l TaskServiceInstrumenter) Complete(taskID string, result string) error {
+	err := l.next.Complete(taskID, result)
+	defer func() {
+        lvs := []string{"state", "completed", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		l.counter.With(lvs...).Add(1)
+	}()
+
+	return err
 }
