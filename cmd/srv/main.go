@@ -125,7 +125,7 @@ func main() {
 	)
 	healthcheckHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "healthcheck"))(
-			endpoint.HealthcheckEndpoint(),
+			endpoint.HealthcheckEndpoint(redisClient),
 		),
 		rest.DecodeHealthcheckRequest,
 		rest.EncodeJSONResponse,

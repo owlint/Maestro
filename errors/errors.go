@@ -15,3 +15,11 @@ type NotFoundError struct {
 func (e NotFoundError) Error() string {
 	return e.Origin.Error()
 }
+
+type RedisError struct {
+	Origin error
+}
+
+func (e RedisError) Error() string {
+	return e.Origin.Error()
+}

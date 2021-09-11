@@ -16,6 +16,8 @@ func EncodeError(_ context.Context, err error, w http.ResponseWriter) {
 		w.WriteHeader(http.StatusNotAcceptable)
 	case errors.NotFoundError:
 		w.WriteHeader(http.StatusNotFound)
+	case errors.RedisError:
+		w.WriteHeader(http.StatusFailedDependency)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}
