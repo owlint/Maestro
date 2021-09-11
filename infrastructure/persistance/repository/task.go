@@ -33,6 +33,7 @@ func (r TaskRepository) Save(ctx context.Context, t domain.Task) error {
 		"maxRetries": t.MaxRetries(),
 		"created_at": t.CreatedAt(),
 		"updated_at": t.UpdatedAt(),
+		"not_before": t.NotBefore(),
 	}
 	if t.State() == "completed" {
 		result, _ := t.Result()

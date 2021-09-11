@@ -20,7 +20,7 @@ func TestTimeOutTasks(t *testing.T) {
 
 	taskIDs := make([]string, 0)
 	for i := 0; i < 10; i++ {
-		taskID, err := service.Create("owner", "test", 1, 0, "")
+		taskID, err := service.Create("owner", "test", 1, 0, "", 0)
 		assert.Nil(t, err)
 		err = service.Select(taskID)
 		assert.Nil(t, err)

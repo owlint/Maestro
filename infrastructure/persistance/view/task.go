@@ -78,10 +78,12 @@ func (v TaskViewImpl) NextInQueue(ctx context.Context, queue string) (*domain.Ta
 		return nil, err
 	}
 
+    now := time.Now().Unix()
 	oldestByOwner := make(map[string]*domain.Task)
 	ownerLastRunAt := make(map[string]int64)
 	for _, task := range tasks {
 		if t, exists := oldestByOwner[task.Owner()]; task.State() == "pending" &&
+            task.NotBefore() <= now &&
 			(!exists || task.UpdatedAt() < t.UpdatedAt()) {
 			oldestByOwner[task.Owner()] = task
 		}
@@ -105,6 +107,7 @@ func (v TaskViewImpl) NextInQueue(ctx context.Context, queue string) (*domain.Ta
 	for owner, lastModificationAt := range ownerLastRunAt {
 		if _, havePendingTask := oldestByOwner[owner]; havePendingTask && lastModificationAt < oldestModificationAt {
 			selectedOwner = owner
+            oldestModificationAt = lastModificationAt
 		}
 	}
 

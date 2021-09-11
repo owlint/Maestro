@@ -15,7 +15,7 @@ import (
 
 // TaskService is a service to manage tasks
 type TaskService interface {
-	Create(owner string, taskQueue string, timeout int32, retry int32, payload string) (string, error)
+	Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error)
 	Select(taskID string) error
 	Fail(taskID string) error
 	Cancel(taskID string) error
@@ -41,10 +41,24 @@ func NewTaskService(repository repository.TaskRepository, view view.TaskView, re
 }
 
 // Create creates a new task from given arguments
-func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, retry int32, payload string) (string, error) {
+func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error) {
 	ctx := context.Background()
-	task := domain.NewTask(owner, taskQueue, payload, timeout, retry)
-	err := s.repo.Save(ctx, *task)
+    if notBefore < 0 {
+        return "", errors.New("NotBefore must be >= 0")
+    }
+
+    var task *domain.Task
+    var err error
+    if notBefore == 0 {
+        task = domain.NewTask(owner, taskQueue, payload, timeout, retry)
+    } else {
+        task, err = domain.NewFutureTask(owner, taskQueue, payload, timeout, retry, notBefore)
+        if err != nil {
+            return "", err
+        }
+    }
+
+	err = s.repo.Save(ctx, *task)
 	if err != nil {
 		return "", err
 	}
@@ -199,8 +213,8 @@ func NewTaskServiceLogger(logger log.Logger, next TaskService) TaskServiceLogger
 	}
 }
 
-func (l TaskServiceLogger) Create(owner string, taskQueue string, timeout int32, retry int32, payload string) (string, error) {
-	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload)
+func (l TaskServiceLogger) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error) {
+	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore)
 	defer func() {
 		l.logger.Log(
 			"action", "create",
@@ -289,8 +303,8 @@ func NewTaskServiceLocker(locker *redislock.Client, next TaskService) TaskServic
 	}
 }
 
-func (l TaskServiceLocker) Create(owner string, taskQueue string, timeout int32, retry int32, payload string) (string, error) {
-	return l.next.Create(owner, taskQueue, timeout, retry, payload)
+func (l TaskServiceLocker) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error) {
+	return l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore)
 }
 func (l TaskServiceLocker) Select(taskID string) error {
 	return l.next.Select(taskID)

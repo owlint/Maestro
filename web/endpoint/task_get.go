@@ -27,6 +27,7 @@ type TaskDTO struct {
 	CreatedAt  int64  `json:"created_at"`
 	UpdatedAt  int64  `json:"updated_at"`
 	Result     string `json:"result,omitempty"`
+	NotBefore  int64  `json:"not_before"`
 }
 
 // TaskStateResponse is the response of a task state
@@ -70,6 +71,7 @@ func fromTask(task *domain.Task) TaskDTO {
 		CreatedAt:  task.CreatedAt(),
 		UpdatedAt:  task.UpdatedAt(),
 		Result:     result,
+        NotBefore:  task.NotBefore(),
 	}
 }
 

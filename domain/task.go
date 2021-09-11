@@ -21,11 +21,36 @@ type Task struct {
 	maxRetries int32
 	createdAt  int64
 	updatedAt  int64
+	notBefore  int64
 	result     string
 }
 
 // NewTask creates a new task
 func NewTask(owner string, taskQueue string, payload string, timeout int32, maxRetries int32) *Task {
+    now := time.Now().Unix()
+	taskID := fmt.Sprintf("Task-%s", uuid.New().String())
+	return &Task{
+		TaskID:     taskID,
+		owner:      owner,
+		payload:    payload,
+		taskQueue:  taskQueue,
+		state:      "pending",
+		timeout:    timeout,
+		retries:    0,
+		maxRetries: maxRetries,
+		createdAt:  now,
+		updatedAt:  now,
+		notBefore:  now,
+	}
+}
+
+// NewTask creates a new task
+func NewFutureTask(owner string, taskQueue string, payload string, timeout int32, maxRetries int32, notBefore int64) (*Task, error) {
+    now := time.Now().Unix()
+    if notBefore < now {
+        return nil, errors.New("notBefore should be in the future")
+    }
+
 	taskID := fmt.Sprintf("Task-%s", uuid.New().String())
 	return &Task{
 		TaskID:     taskID,
@@ -38,7 +63,8 @@ func NewTask(owner string, taskQueue string, payload string, timeout int32, maxR
 		maxRetries: maxRetries,
 		createdAt:  time.Now().Unix(),
 		updatedAt:  time.Now().Unix(),
-	}
+		notBefore:  notBefore,
+	}, nil
 }
 
 func TaskFromStringMap(data map[string]string) (*Task, error) {
@@ -62,6 +88,10 @@ func TaskFromStringMap(data map[string]string) (*Task, error) {
 	if err != nil {
 		return nil, err
 	}
+	notBefore, err := strconv.ParseInt(data["not_before"], 10, 64)
+	if err != nil {
+		return nil, err
+	}
 
 	task := &Task{
 		TaskID:     data["task_id"],
@@ -74,6 +104,7 @@ func TaskFromStringMap(data map[string]string) (*Task, error) {
 		maxRetries: int32(maxRetries),
 		createdAt:  createdAt,
 		updatedAt:  updatedAt,
+		notBefore:  notBefore,
 	}
 
 	if result, present := data["result"]; present {
@@ -98,6 +129,10 @@ func (t *Task) CreatedAt() int64 {
 
 func (t *Task) UpdatedAt() int64 {
 	return t.updatedAt
+}
+
+func (t *Task) NotBefore() int64 {
+    return t.notBefore
 }
 
 // Owner returns the owner of this task

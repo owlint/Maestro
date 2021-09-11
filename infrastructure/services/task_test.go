@@ -22,7 +22,7 @@ func TestCreate(t *testing.T) {
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
 
-	taskID, err := service.Create("owner", "test", 3, 5, "")
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0)
 	assert.Nil(t, err)
 
 	exist, err := view.Exists(ctx, taskID)
@@ -37,7 +37,7 @@ func TestSelect(t *testing.T) {
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
 
-	taskID, err := service.Create("owner", "test", 3, 5, "")
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0)
 	assert.Nil(t, err)
 
 	err = service.Select(taskID)
@@ -63,7 +63,7 @@ func TestComplete(t *testing.T) {
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 5, "")
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
 
@@ -83,7 +83,7 @@ func TestCompleteExpiration(t *testing.T) {
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 800)
-	taskID, err := service.Create("owner", "test", 3, 5, "")
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
 
@@ -114,7 +114,7 @@ func TestCancel(t *testing.T) {
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
 
-	taskID, err := service.Create("owner", "test", 3, 5, "")
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
 
@@ -144,7 +144,7 @@ func TestFail(t *testing.T) {
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 1, "")
+	taskID, err := service.Create("owner", "test", 3, 1, "", 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
 
@@ -163,7 +163,7 @@ func TestFailed(t *testing.T) {
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 1, "")
+	taskID, err := service.Create("owner", "test", 3, 1, "", 0)
 	assert.Nil(t, err)
 	service.Select(taskID)
 	service.Fail(taskID)
@@ -195,7 +195,7 @@ func TestTimeout(t *testing.T) {
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 1, "")
+	taskID, err := service.Create("owner", "test", 3, 1, "", 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
 
@@ -214,7 +214,7 @@ func TestTimeouted(t *testing.T) {
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 1, "")
+	taskID, err := service.Create("owner", "test", 3, 1, "", 0)
 	assert.Nil(t, err)
 	service.Select(taskID)
 	service.Timeout(taskID)

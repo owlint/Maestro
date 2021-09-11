@@ -43,6 +43,7 @@ func TestSave(t *testing.T) {
 		"maxRetries": strconv.FormatInt(int64(task.MaxRetries()), 10),
 		"created_at": strconv.FormatInt(task.CreatedAt(), 10),
 		"updated_at": strconv.FormatInt(task.UpdatedAt(), 10),
+		"not_before": strconv.FormatInt(task.NotBefore(), 10),
 	}
 	assert.Equal(t, shouldBe, values)
 

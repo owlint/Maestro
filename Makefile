@@ -17,7 +17,7 @@ proto:
 	protoc --go_out=. --go_opt=paths=source_relative pb/taskevents/taskevents.proto
 
 test:
-	go test -v ./...
+	go test ./...
 
 build:
 	echo "Compiling for every OS and Platform"

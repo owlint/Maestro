@@ -19,6 +19,7 @@ func TestCreation(t *testing.T) {
 	assert.Equal(t, task.state, "pending")
 	assert.InDelta(t, time.Now().Unix(), task.createdAt, 5)
 	assert.InDelta(t, time.Now().Unix(), task.updatedAt, 5)
+	assert.InDelta(t, time.Now().Unix(), task.notBefore, 5)
 }
 
 func TestState(t *testing.T) {
@@ -161,4 +162,27 @@ func TestOwner(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0)
 
 	assert.Equal(t, "laurent", task.Owner())
+}
+
+func TestCreationFuture(t *testing.T) {
+	task, err := NewFutureTask("laurent", "test", "payload", 10, 3, time.Now().Unix() + 10)
+
+	assert.Nil(t, err)
+	assert.NotNil(t, task)
+	assert.GreaterOrEqual(t, len(task.TaskID), 1)
+	assert.Equal(t, "test", task.taskQueue)
+	assert.Equal(t, task.timeout, int32(10))
+	assert.Equal(t, task.retries, int32(0))
+	assert.Equal(t, task.maxRetries, int32(3))
+	assert.Equal(t, task.state, "pending")
+	assert.InDelta(t, time.Now().Unix(), task.createdAt, 5)
+	assert.InDelta(t, time.Now().Unix(), task.updatedAt, 5)
+	assert.InDelta(t, time.Now().Unix() + 10, task.notBefore, 5)
+}
+
+func TestCreationPast(t *testing.T) {
+	task, err := NewFutureTask("laurent", "test", "payload", 10, 3, time.Now().Unix() - 10)
+
+	assert.NotNil(t, err)
+	assert.Nil(t, task)
 }

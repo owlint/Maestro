@@ -11,11 +11,12 @@ import (
 
 // CreateTaskRequest is a request to create a task
 type CreateTaskRequest struct {
-	Owner   string `json:"owner"`
-	Queue   string `json:"queue"`
-	Retries int32  `json:"retries"`
-	Timeout int32  `json:"timeout"`
-	Payload string `json:"payload"`
+	Owner     string `json:"owner"`
+	Queue     string `json:"queue"`
+	Retries   int32  `json:"retries"`
+	Timeout   int32  `json:"timeout"`
+	Payload   string `json:"payload"`
+	NotBefore int64  `json:"not_before"`
 }
 
 // CreateTaskResponse is the response of a task creation
@@ -31,7 +32,7 @@ func CreateTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 		if err != nil {
 			return CreateTaskResponse{"", err.Error()}, taskerrors.ValidationError{err}
 		}
-		taskID, err := svc.Create(req.Owner, req.Queue, req.Timeout, req.Retries, req.Payload)
+		taskID, err := svc.Create(req.Owner, req.Queue, req.Timeout, req.Retries, req.Payload, req.NotBefore)
 		if err != nil {
 			return CreateTaskResponse{"", err.Error()}, err
 		}
@@ -49,6 +50,9 @@ func unmarshalCreateTaskRequest(request interface{}) (*CreateTaskRequest, error)
 	}
 	if req.Timeout <= 0 {
 		return nil, errors.New("timeout must be > 0")
+	}
+	if req.NotBefore < 0 {
+		return nil, errors.New("not_before must be >= 0")
 	}
 	if req.Payload == "" {
 		return nil, errors.New("payload is a required field")
@@ -76,7 +80,7 @@ func CreateTaskListEndpoint(svc services.TaskService) endpoint.Endpoint {
 		}
 		taskIDs := make([]string, len(req.Tasks))
 		for i, task := range req.Tasks {
-			taskID, err := svc.Create(task.Owner, task.Queue, task.Timeout, task.Retries, task.Payload)
+			taskID, err := svc.Create(task.Owner, task.Queue, task.Timeout, task.Retries, task.Payload, task.NotBefore)
 			if err != nil {
 				return CreateTaskResponse{"", err.Error()}, err
 			}
@@ -97,6 +101,9 @@ func unmarshalCreateTaskListRequest(request interface{}) (*CreateTaskListRequest
 		}
 		if task.Timeout <= 0 {
 			return nil, errors.New("timeout must be > 0")
+		}
+		if task.NotBefore < 0 {
+			return nil, errors.New("not_before must be >= 0")
 		}
 		if task.Payload == "" {
 			return nil, errors.New("payload is a taskuired field")

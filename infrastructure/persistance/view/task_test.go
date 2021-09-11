@@ -29,6 +29,7 @@ func TestByID(t *testing.T) {
 	assert.Equal(t, task.Queue(), reloaded.Queue())
 	assert.Equal(t, task.State(), reloaded.State())
 	assert.Equal(t, task.UpdatedAt(), reloaded.UpdatedAt())
+	assert.Equal(t, task.NotBefore(), reloaded.NotBefore())
 	assert.Equal(t, task.Owner(), reloaded.Owner())
 }
 func TestInQueue(t *testing.T) {
