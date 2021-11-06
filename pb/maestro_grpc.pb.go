@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 type MaestroServiceClient interface {
 	CreateTask(ctx context.Context, in *CreateTaskRequest, opts ...grpc.CallOption) (*CreateTaskResponse, error)
 	CreateTaskList(ctx context.Context, in *CreateTaskListRequest, opts ...grpc.CallOption) (*CreateTaskListResponse, error)
+	TaskState(ctx context.Context, in *TaskStateRequest, opts ...grpc.CallOption) (*TaskStateResponse, error)
 	QueueStats(ctx context.Context, in *QueueStatsRequest, opts ...grpc.CallOption) (*QueueStatsResponse, error)
 }
 
@@ -49,6 +50,15 @@ func (c *maestroServiceClient) CreateTaskList(ctx context.Context, in *CreateTas
 	return out, nil
 }
 
+func (c *maestroServiceClient) TaskState(ctx context.Context, in *TaskStateRequest, opts ...grpc.CallOption) (*TaskStateResponse, error) {
+	out := new(TaskStateResponse)
+	err := c.cc.Invoke(ctx, "/MaestroService/TaskState", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *maestroServiceClient) QueueStats(ctx context.Context, in *QueueStatsRequest, opts ...grpc.CallOption) (*QueueStatsResponse, error) {
 	out := new(QueueStatsResponse)
 	err := c.cc.Invoke(ctx, "/MaestroService/QueueStats", in, out, opts...)
@@ -64,6 +74,7 @@ func (c *maestroServiceClient) QueueStats(ctx context.Context, in *QueueStatsReq
 type MaestroServiceServer interface {
 	CreateTask(context.Context, *CreateTaskRequest) (*CreateTaskResponse, error)
 	CreateTaskList(context.Context, *CreateTaskListRequest) (*CreateTaskListResponse, error)
+	TaskState(context.Context, *TaskStateRequest) (*TaskStateResponse, error)
 	QueueStats(context.Context, *QueueStatsRequest) (*QueueStatsResponse, error)
 	mustEmbedUnimplementedMaestroServiceServer()
 }
@@ -77,6 +88,9 @@ func (UnimplementedMaestroServiceServer) CreateTask(context.Context, *CreateTask
 }
 func (UnimplementedMaestroServiceServer) CreateTaskList(context.Context, *CreateTaskListRequest) (*CreateTaskListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateTaskList not implemented")
+}
+func (UnimplementedMaestroServiceServer) TaskState(context.Context, *TaskStateRequest) (*TaskStateResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TaskState not implemented")
 }
 func (UnimplementedMaestroServiceServer) QueueStats(context.Context, *QueueStatsRequest) (*QueueStatsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueueStats not implemented")
@@ -130,6 +144,24 @@ func _MaestroService_CreateTaskList_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MaestroService_TaskState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TaskStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MaestroServiceServer).TaskState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/MaestroService/TaskState",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MaestroServiceServer).TaskState(ctx, req.(*TaskStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _MaestroService_QueueStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueueStatsRequest)
 	if err := dec(in); err != nil {
@@ -162,6 +194,10 @@ var MaestroService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateTaskList",
 			Handler:    _MaestroService_CreateTaskList_Handler,
+		},
+		{
+			MethodName: "TaskState",
+			Handler:    _MaestroService_TaskState_Handler,
 		},
 		{
 			MethodName: "QueueStats",

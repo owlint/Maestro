@@ -5,6 +5,7 @@ option go_package = "github.com/owlint/maestro/pb";
 service MaestroService {
   rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse) {}
   rpc CreateTaskList(CreateTaskListRequest) returns (CreateTaskListResponse) {}
+  rpc TaskState(TaskStateRequest) returns (TaskStateResponse) {}
   rpc QueueStats(QueueStatsRequest) returns (QueueStatsResponse) {}
 }
 
@@ -27,6 +28,30 @@ message CreateTaskListRequest {
 
 message CreateTaskListResponse {
   repeated string task_ids = 1;
+  string error = 2;
+}
+
+message TaskStateRequest {
+  string task_id = 1;
+}
+
+message Task {
+  string task_id = 1;
+  string owner = 2;
+  string task_queue = 3;
+  string payload = 4;
+  string state = 5;
+  int32 timeout = 6;
+  int32 retries = 7;
+  int32 max_retries = 8;
+  int64 created_at = 9;
+  int64 updated_at = 10;
+  string result = 11;
+  int64 not_before = 12;
+}
+
+message TaskStateResponse {
+  Task task = 1;
   string error = 2;
 }
 
