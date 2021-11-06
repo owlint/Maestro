@@ -4,6 +4,7 @@ option go_package = "github.com/owlint/maestro/pb";
 
 service MaestroService {
   rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse) {}
+  rpc CreateTaskList(CreateTaskListRequest) returns (CreateTaskListResponse) {}
   rpc QueueStats(QueueStatsRequest) returns (QueueStatsResponse) {}
 }
 
@@ -18,6 +19,14 @@ message CreateTaskRequest {
 
 message CreateTaskResponse {
   string task_id = 1;
+  string error = 2;
+}
+message CreateTaskListRequest {
+  repeated CreateTaskRequest tasks = 1;
+}
+
+message CreateTaskListResponse {
+  repeated string task_ids = 1;
   string error = 2;
 }
 

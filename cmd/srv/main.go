@@ -119,6 +119,7 @@ func main() {
 	)
     grpcServer := rpc.NewGRPCServer(
         taskEndpoint,
+		taskListEndpoint,
         queueStatsEndpoint,
     )
 
