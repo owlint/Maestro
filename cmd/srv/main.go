@@ -103,7 +103,8 @@ func main() {
 		endpoint.HealthcheckEndpoint(redisClient),
 	)
 
-	httpServer := rest.NewHTTPServer(taskEndpoint,
+	httpServer := rest.NewHTTPServer(
+        taskEndpoint,
 		taskListEndpoint,
 		taskStateEndpoint,
 		completeTaskEndpoint,
@@ -116,7 +117,10 @@ func main() {
 		queueStatsEndpoint,
 		healthcheckEndpoint,
 	)
-    grpcServer := rpc.NewGRPCServer(queueStatsEndpoint)
+    grpcServer := rpc.NewGRPCServer(
+        taskEndpoint,
+        queueStatsEndpoint,
+    )
 
     errs := make(chan error)
     go func() {

@@ -3,7 +3,22 @@ syntax = "proto3";
 option go_package = "github.com/owlint/maestro/pb";
 
 service MaestroService {
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse) {}
   rpc QueueStats(QueueStatsRequest) returns (QueueStatsResponse) {}
+}
+
+message CreateTaskRequest {
+  string owner = 1;
+  string queue = 2;
+  int32 retries = 3;
+  int32 timeout = 4;
+  string payload = 5;
+  int64 not_before = 6;
+}
+
+message CreateTaskResponse {
+  string task_id = 1;
+  string error = 2;
 }
 
 message QueueStatsRequest {
@@ -17,5 +32,6 @@ message QueueStatsResponse {
   repeated string completed = 4;
   repeated string timedout = 5;
   repeated string failed = 6;
+  repeated string canceled = 7;
 }
 

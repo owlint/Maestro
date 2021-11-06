@@ -18,6 +18,7 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MaestroServiceClient interface {
+	CreateTask(ctx context.Context, in *CreateTaskRequest, opts ...grpc.CallOption) (*CreateTaskResponse, error)
 	QueueStats(ctx context.Context, in *QueueStatsRequest, opts ...grpc.CallOption) (*QueueStatsResponse, error)
 }
 
@@ -27,6 +28,15 @@ type maestroServiceClient struct {
 
 func NewMaestroServiceClient(cc grpc.ClientConnInterface) MaestroServiceClient {
 	return &maestroServiceClient{cc}
+}
+
+func (c *maestroServiceClient) CreateTask(ctx context.Context, in *CreateTaskRequest, opts ...grpc.CallOption) (*CreateTaskResponse, error) {
+	out := new(CreateTaskResponse)
+	err := c.cc.Invoke(ctx, "/MaestroService/CreateTask", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *maestroServiceClient) QueueStats(ctx context.Context, in *QueueStatsRequest, opts ...grpc.CallOption) (*QueueStatsResponse, error) {
@@ -42,6 +52,7 @@ func (c *maestroServiceClient) QueueStats(ctx context.Context, in *QueueStatsReq
 // All implementations must embed UnimplementedMaestroServiceServer
 // for forward compatibility
 type MaestroServiceServer interface {
+	CreateTask(context.Context, *CreateTaskRequest) (*CreateTaskResponse, error)
 	QueueStats(context.Context, *QueueStatsRequest) (*QueueStatsResponse, error)
 	mustEmbedUnimplementedMaestroServiceServer()
 }
@@ -50,6 +61,9 @@ type MaestroServiceServer interface {
 type UnimplementedMaestroServiceServer struct {
 }
 
+func (UnimplementedMaestroServiceServer) CreateTask(context.Context, *CreateTaskRequest) (*CreateTaskResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateTask not implemented")
+}
 func (UnimplementedMaestroServiceServer) QueueStats(context.Context, *QueueStatsRequest) (*QueueStatsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueueStats not implemented")
 }
@@ -64,6 +78,24 @@ type UnsafeMaestroServiceServer interface {
 
 func RegisterMaestroServiceServer(s grpc.ServiceRegistrar, srv MaestroServiceServer) {
 	s.RegisterService(&MaestroService_ServiceDesc, srv)
+}
+
+func _MaestroService_CreateTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MaestroServiceServer).CreateTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/MaestroService/CreateTask",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MaestroServiceServer).CreateTask(ctx, req.(*CreateTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _MaestroService_QueueStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -91,6 +123,10 @@ var MaestroService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "MaestroService",
 	HandlerType: (*MaestroServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "CreateTask",
+			Handler:    _MaestroService_CreateTask_Handler,
+		},
 		{
 			MethodName: "QueueStats",
 			Handler:    _MaestroService_QueueStats_Handler,
