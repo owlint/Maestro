@@ -1,6 +1,9 @@
 package main
 
 import (
+    "net"
+    "os/signal"
+    "syscall"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,17 +12,17 @@ import (
 
 	"github.com/bsm/redislock"
 	"github.com/go-kit/kit/log"
-	httptransport "github.com/go-kit/kit/transport/http"
-	"github.com/julienschmidt/httprouter"
+	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/owlint/maestro/infrastructure/persistance/drivers"
 	"github.com/owlint/maestro/infrastructure/persistance/repository"
 	"github.com/owlint/maestro/infrastructure/persistance/view"
 	"github.com/owlint/maestro/infrastructure/services"
 	"github.com/owlint/maestro/web/endpoint"
 	"github.com/owlint/maestro/web/transport/rest"
-    stdprometheus "github.com/prometheus/client_golang/prometheus"
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
-    "github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/owlint/maestro/web/transport/rpc"
+	stdprometheus "github.com/prometheus/client_golang/prometheus"
+    "google.golang.org/grpc"
+    "github.com/owlint/maestro/pb"
 )
 
 func main() {
@@ -29,7 +32,7 @@ func main() {
 	locker := redislock.New(redisClient)
 	logger := log.NewJSONLogger(os.Stderr)
 
-    fieldKeys := []string{"state", "instance_id", "err"}
+	fieldKeys := []string{"state", "instance_id", "err"}
 	stateCount := kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
 		Namespace: "maestro",
 		Subsystem: "tasks",
@@ -40,13 +43,13 @@ func main() {
 	view := view.NewTaskViewLocker(locker, view.NewTaskView(redisClient))
 	repo := repository.NewTaskRepository(redisClient)
 	taskService := services.NewTaskServiceInstrumenter(stateCount,
-        services.NewTaskServiceLocker(
-            locker,
-            services.NewTaskServiceLogger(
-                log.With(logger, "layer", "service"),
-                services.NewTaskService(repo, view, expirationTime),
-            ),
-        ),
+		services.NewTaskServiceLocker(
+			locker,
+			services.NewTaskServiceLogger(
+				log.With(logger, "layer", "service"),
+				services.NewTaskService(repo, view, expirationTime),
+			),
+		),
 	)
 	taskTimeoutService := services.NewTaskTimeoutService(taskService, view)
 
@@ -61,122 +64,87 @@ func main() {
 			time.Sleep(1 * time.Second)
 		}
 	}()
-	errorEncoder := httptransport.ServerErrorEncoder(rest.EncodeError)
 	endpointLogger := log.With(logger, "layer", "endpoint")
 
-
-	createTaskHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "create_task"))(
-			endpoint.CreateTaskEndpoint(taskService),
-		),
-		rest.DecodeCreateTaskRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	taskEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "create_task"))(
+		endpoint.CreateTaskEndpoint(taskService),
 	)
-	createTaskListHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "create_task_list"))(
-			endpoint.CreateTaskListEndpoint(taskService),
-		),
-		rest.DecodeCreateTaskListRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	taskListEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "create_task_list"))(
+		endpoint.CreateTaskListEndpoint(taskService),
 	)
-	taskStateHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "get_task"))(
-			endpoint.TaskStateEndpoint(view),
-		),
-		rest.DecodeTaskStateRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	taskStateEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "get_task"))(
+		endpoint.TaskStateEndpoint(view),
 	)
-	completeTaskHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "complete_task"))(
-			endpoint.CompleteTaskEndpoint(taskService),
-		),
-		rest.DecodeCompleteRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	completeTaskEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "complete_task"))(
+		endpoint.CompleteTaskEndpoint(taskService),
 	)
-	deleteTaskHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "delete_task"))(
-			endpoint.DeleteTaskEndpoint(taskService),
-		),
-		rest.DecodeDeleteTaskRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	deleteTaskEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "delete_task"))(
+		endpoint.DeleteTaskEndpoint(taskService),
 	)
-	failTaskHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "fail_task"))(
-			endpoint.FailTaskEndpoint(taskService),
-		),
-		rest.DecodeFailRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	failTaskEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "fail_task"))(
+		endpoint.FailTaskEndpoint(taskService),
 	)
-	cancelTaskHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "cancel_task"))(
-			endpoint.CancelTaskEndpoint(taskService),
-		),
-		rest.DecodeCancelRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	cancelTaskEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "cancel_task"))(
+		endpoint.CancelTaskEndpoint(taskService),
 	)
-	timeoutTaskHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "fail_task"))(
-			endpoint.TimeoutTaskEndpoint(taskService),
-		),
-		rest.DecodeTimeoutRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	timeoutTaskEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "fail_task"))(
+		endpoint.TimeoutTaskEndpoint(taskService),
 	)
-	queueNextTaskHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "next"))(
-			endpoint.QueueNextEndpoint(taskService, view, locker),
-		),
-		rest.DecodeQueueNextRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	queueNextEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "next"))(
+		endpoint.QueueNextEndpoint(taskService, view, locker),
 	)
-	queueConsumeTaskHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "next"))(
-			endpoint.ConsumeQueueEndpoint(taskService),
-		),
-		rest.DecodeConsumeQueueRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	consumeQueueEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "next"))(
+		endpoint.ConsumeQueueEndpoint(taskService),
 	)
-	queueStatsHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "stats"))(
-			endpoint.QueueStatsEndpoint(view),
-		),
-		rest.DecodeQueueStatsRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	queueStatsEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "stats"))(
+		endpoint.QueueStatsEndpoint(view),
 	)
-	healthcheckHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "healthcheck"))(
-			endpoint.HealthcheckEndpoint(redisClient),
-		),
-		rest.DecodeHealthcheckRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
+	healthcheckEndpoint := endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "healthcheck"))(
+		endpoint.HealthcheckEndpoint(redisClient),
 	)
 
-	router := httprouter.New()
-	router.Handler("POST", "/api/task/create", createTaskHandler)
-	router.Handler("POST", "/api/task/create/list", createTaskListHandler)
-	router.Handler("POST", "/api/task/get", taskStateHandler)
-	router.Handler("POST", "/api/task/complete", completeTaskHandler)
-	router.Handler("POST", "/api/task/cancel", cancelTaskHandler)
-	router.Handler("POST", "/api/task/fail", failTaskHandler)
-	router.Handler("POST", "/api/task/delete", deleteTaskHandler)
-	router.Handler("POST", "/api/task/timeout", timeoutTaskHandler)
-	router.Handler("POST", "/api/queue/next", queueNextTaskHandler)
-	router.Handler("POST", "/api/queue/stats", queueStatsHandler)
-	router.Handler("POST", "/api/queue/results/consume", queueConsumeTaskHandler)
-	router.Handler("GET", "/api/healthcheck", healthcheckHandler)
-    router.Handler("GET", "/metrics", promhttp.Handler())
-	logger.Log(http.ListenAndServe(":8080", router))
+	httpServer := rest.NewHTTPServer(taskEndpoint,
+		taskListEndpoint,
+		taskStateEndpoint,
+		completeTaskEndpoint,
+		deleteTaskEndpoint,
+		failTaskEndpoint,
+		cancelTaskEndpoint,
+		timeoutTaskEndpoint,
+		queueNextEndpoint,
+		consumeQueueEndpoint,
+		queueStatsEndpoint,
+		healthcheckEndpoint,
+	)
+    grpcServer := rpc.NewGRPCServer(queueStatsEndpoint)
+
+    errs := make(chan error)
+    go func() {
+        c := make(chan os.Signal)
+        signal.Notify(c, syscall.SIGINT, syscall.SIGTERM, syscall.SIGALRM)
+        errs <- fmt.Errorf("%s", <-c)
+    }()
+
+    grpcListener, err := net.Listen("tcp", ":50051")
+    if err != nil {
+        logger.Log("during", "Listen", "err", err)
+        os.Exit(1)
+    }
+    go func(logger log.Logger) {
+        baseServer := grpc.NewServer()
+        pb.RegisterMaestroServiceServer(baseServer, grpcServer)
+        logger.Log("msg", "grpc server is on port :50051")
+        err := baseServer.Serve(grpcListener)
+        logger.Log("err", err)
+    }(logger)
+
+    go func(logger log.Logger) {
+        logger.Log("msg", "rest server is on port :8080")
+        http.ListenAndServe(":8080", httpServer)
+    }(logger)
+    
+    err = <-errs
+    logger.Log("exit", err)
 }
 
 func getResultExpirationTime() int {

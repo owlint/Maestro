@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+option go_package = "github.com/owlint/maestro/pb";
+
+service MaestroService {
+  rpc QueueStats(QueueStatsRequest) returns (QueueStatsResponse) {}
+}
+
+message QueueStatsRequest {
+  string queueName = 1;
+}
+
+message QueueStatsResponse {
+  repeated string scheduled = 1;
+  repeated string pending = 2;
+  repeated string running = 3;
+  repeated string completed = 4;
+  repeated string timedout = 5;
+  repeated string failed = 6;
+}
+
