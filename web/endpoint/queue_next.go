@@ -3,6 +3,7 @@ package endpoint
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"time"
 
 	"github.com/bsm/redislock"
@@ -75,7 +76,7 @@ func QueueNextEndpoint(
 
 func acquire(locker *redislock.Client, ctx context.Context, name string) (*redislock.Lock, error) {
 	// Retry every 100ms, for up-to 3x
-	backoff := redislock.LimitRetry(redislock.LinearBackoff(100*time.Millisecond), 3)
+	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100+rand.Intn(50))*time.Millisecond), 10)
 
 	// Obtain lock with retry
 	lock, err := locker.Obtain(ctx, name, 2*time.Second, &redislock.Options{
@@ -110,14 +111,14 @@ func ConsumeQueueEndpoint(
 			return TaskStateResponse{nil, err.Error()}, taskerrors.ValidationError{err}
 		}
 
-        next, err := svc.ConsumeQueueResult(req.Queue)
-        if err != nil {
+		next, err := svc.ConsumeQueueResult(req.Queue)
+		if err != nil {
 			return TaskStateResponse{nil, err.Error()}, taskerrors.NotFoundError{err}
-        }
+		}
 
-        if next == nil {
-            return TaskStateResponse{nil, ""}, nil
-        }
+		if next == nil {
+			return TaskStateResponse{nil, ""}, nil
+		}
 
 		taskDTO := fromTask(next)
 		return TaskStateResponse{&taskDTO, ""}, nil

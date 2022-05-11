@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/bsm/redislock"
@@ -162,15 +163,15 @@ func (v TaskViewImpl) QueueStats(ctx context.Context, queue string) (map[string]
 	}
 
 	now := time.Now().Unix()
-	stats := map[string][]string {
-        "planned": make([]string, 0),
-        "pending": make([]string, 0),
-        "running": make([]string, 0),
-        "completed": make([]string, 0),
-        "canceled": make([]string, 0),
-        "failed": make([]string, 0),
-        "timedout": make([]string, 0),
-    }
+	stats := map[string][]string{
+		"planned":   make([]string, 0),
+		"pending":   make([]string, 0),
+		"running":   make([]string, 0),
+		"completed": make([]string, 0),
+		"canceled":  make([]string, 0),
+		"failed":    make([]string, 0),
+		"timedout":  make([]string, 0),
+	}
 	for _, key := range keys {
 		dataCmd := v.redis.HGetAll(ctx, key)
 		if dataCmd.Err() != nil {
@@ -277,7 +278,7 @@ func (v TaskViewLocker) InQueue(ctx context.Context, queue string) ([]*domain.Ta
 }
 
 func (v TaskViewLocker) QueueStats(ctx context.Context, queue string) (map[string][]string, error) {
-    return v.next.QueueStats(ctx, queue)
+	return v.next.QueueStats(ctx, queue)
 }
 
 func (v TaskViewLocker) TimedOut(ctx context.Context) ([]*domain.Task, error) {
@@ -294,7 +295,7 @@ func (v TaskViewLocker) TimedOut(ctx context.Context) ([]*domain.Task, error) {
 
 func (v TaskViewLocker) acquire(ctx context.Context, name string) (*redislock.Lock, error) {
 	// Retry every 100ms, for up-to 3x
-	backoff := redislock.LimitRetry(redislock.LinearBackoff(300*time.Millisecond), 3)
+	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100+rand.Intn(50))*time.Millisecond), 10)
 
 	// Obtain lock with retry
 	lock, err := v.locker.Obtain(ctx, name, 2*time.Second, &redislock.Options{

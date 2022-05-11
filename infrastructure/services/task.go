@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"time"
 
-    "github.com/google/uuid"
 	"github.com/bsm/redislock"
 	"github.com/go-kit/kit/log"
+	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
+	"github.com/google/uuid"
 	"github.com/owlint/maestro/domain"
 	"github.com/owlint/maestro/infrastructure/persistance/repository"
 	"github.com/owlint/maestro/infrastructure/persistance/view"
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 )
 
 // TaskService is a service to manage tasks
@@ -24,7 +25,7 @@ type TaskService interface {
 	Timeout(taskID string) error
 	Complete(taskID string, result string) error
 	Delete(taskID string) error
-    ConsumeQueueResult(queue string) (*domain.Task, error)
+	ConsumeQueueResult(queue string) (*domain.Task, error)
 }
 
 // TaskServiceImpl is an implementation of TaskService
@@ -46,20 +47,20 @@ func NewTaskService(repository repository.TaskRepository, view view.TaskView, re
 // Create creates a new task from given arguments
 func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error) {
 	ctx := context.Background()
-    if notBefore < 0 {
-        return "", errors.New("NotBefore must be >= 0")
-    }
+	if notBefore < 0 {
+		return "", errors.New("NotBefore must be >= 0")
+	}
 
-    var task *domain.Task
-    var err error
-    if notBefore == 0 {
-        task = domain.NewTask(owner, taskQueue, payload, timeout, retry)
-    } else {
-        task, err = domain.NewFutureTask(owner, taskQueue, payload, timeout, retry, notBefore)
-        if err != nil {
-            return "", err
-        }
-    }
+	var task *domain.Task
+	var err error
+	if notBefore == 0 {
+		task = domain.NewTask(owner, taskQueue, payload, timeout, retry)
+	} else {
+		task, err = domain.NewFutureTask(owner, taskQueue, payload, timeout, retry, notBefore)
+		if err != nil {
+			return "", err
+		}
+	}
 
 	err = s.repo.Save(ctx, *task)
 	if err != nil {
@@ -206,27 +207,27 @@ func (s TaskServiceImpl) Cancel(taskID string) error {
 func (s TaskServiceImpl) ConsumeQueueResult(queue string) (*domain.Task, error) {
 	ctx := context.Background()
 
-    tasks, err := s.view.InQueue(ctx, queue)
-    if err != nil {
-        return nil, err
-    }
+	tasks, err := s.view.InQueue(ctx, queue)
+	if err != nil {
+		return nil, err
+	}
 
-    var oldestTask *domain.Task = nil
-    oldestModification := time.Now().Unix()
-    for _, task := range tasks {
-        if task.State() == "completed" ||  task.State() == "failed" || task.State() == "timedout" {
-            if task.UpdatedAt() < oldestModification {
-                oldestTask = task
-                oldestModification = task.UpdatedAt()
-            }
-        }
-    }
+	var oldestTask *domain.Task = nil
+	oldestModification := time.Now().Unix()
+	for _, task := range tasks {
+		if task.State() == "completed" || task.State() == "failed" || task.State() == "timedout" {
+			if task.UpdatedAt() < oldestModification {
+				oldestTask = task
+				oldestModification = task.UpdatedAt()
+			}
+		}
+	}
 
-    if oldestTask != nil {
-        s.Delete(oldestTask.TaskID)
-    }
+	if oldestTask != nil {
+		s.Delete(oldestTask.TaskID)
+	}
 
-    return oldestTask, nil
+	return oldestTask, nil
 }
 
 // ############################################################################
@@ -396,7 +397,7 @@ func (l TaskServiceLocker) Complete(taskID string, result string) error {
 
 func (l TaskServiceLocker) acquire(ctx context.Context, name string) (*redislock.Lock, error) {
 	// Retry every 100ms, for up-to 3x
-	backoff := redislock.LimitRetry(redislock.LinearBackoff(100*time.Millisecond), 3)
+	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100+rand.Intn(50))*time.Millisecond), 10)
 
 	// Obtain lock with retry
 	lock, err := l.locker.Obtain(ctx, name, 2*time.Second, &redislock.Options{
@@ -410,27 +411,28 @@ func (l TaskServiceLocker) acquire(ctx context.Context, name string) (*redislock
 
 	return lock, nil
 }
+
 // ############################################################################
 //                            Instrumenting Middleware
 // ############################################################################
 type TaskServiceInstrumenter struct {
-    instanceID string
-    counter *kitprometheus.Counter
-	next   TaskService
+	instanceID string
+	counter    *kitprometheus.Counter
+	next       TaskService
 }
 
 func NewTaskServiceInstrumenter(counter *kitprometheus.Counter, next TaskService) TaskServiceInstrumenter {
 	return TaskServiceInstrumenter{
-        instanceID: uuid.New().String(),
-        counter: counter,
-		next:   next,
+		instanceID: uuid.New().String(),
+		counter:    counter,
+		next:       next,
 	}
 }
 
 func (l TaskServiceInstrumenter) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error) {
 	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore)
 	defer func() {
-        lvs := []string{"state", "pending", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", "pending", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
@@ -439,7 +441,7 @@ func (l TaskServiceInstrumenter) Create(owner string, taskQueue string, timeout 
 func (l TaskServiceInstrumenter) Select(taskID string) error {
 	err := l.next.Select(taskID)
 	defer func() {
-        lvs := []string{"state", "running", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", "running", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
@@ -448,7 +450,7 @@ func (l TaskServiceInstrumenter) Select(taskID string) error {
 func (l TaskServiceInstrumenter) Fail(taskID string) error {
 	err := l.next.Fail(taskID)
 	defer func() {
-        lvs := []string{"state", "failed", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", "failed", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
@@ -457,7 +459,7 @@ func (l TaskServiceInstrumenter) Fail(taskID string) error {
 func (l TaskServiceInstrumenter) Delete(taskID string) error {
 	err := l.next.Delete(taskID)
 	defer func() {
-        lvs := []string{"state", "deleted", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", "deleted", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
@@ -466,7 +468,7 @@ func (l TaskServiceInstrumenter) Delete(taskID string) error {
 func (l TaskServiceInstrumenter) Cancel(taskID string) error {
 	err := l.next.Cancel(taskID)
 	defer func() {
-        lvs := []string{"state", "canceled", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", "canceled", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
@@ -475,7 +477,7 @@ func (l TaskServiceInstrumenter) Cancel(taskID string) error {
 func (l TaskServiceInstrumenter) Timeout(taskID string) error {
 	err := l.next.Timeout(taskID)
 	defer func() {
-        lvs := []string{"state", "timedout", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", "timedout", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
@@ -484,7 +486,7 @@ func (l TaskServiceInstrumenter) Timeout(taskID string) error {
 func (l TaskServiceInstrumenter) ConsumeQueueResult(queue string) (*domain.Task, error) {
 	task, err := l.next.ConsumeQueueResult(queue)
 	defer func() {
-        lvs := []string{"state", "consumed", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", "consumed", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
@@ -493,7 +495,7 @@ func (l TaskServiceInstrumenter) ConsumeQueueResult(queue string) (*domain.Task,
 func (l TaskServiceInstrumenter) Complete(taskID string, result string) error {
 	err := l.next.Complete(taskID, result)
 	defer func() {
-        lvs := []string{"state", "completed", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", "completed", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
