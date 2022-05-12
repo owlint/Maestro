@@ -404,7 +404,7 @@ func (l TaskServiceLocker) acquire(ctx context.Context, name string) (*redislock
 		RetryStrategy: backoff,
 	})
 	if err == redislock.ErrNotObtained {
-		return nil, errors.New("Could not get a task from queue")
+		return nil, fmt.Errorf("Could not get lock %s", name)
 	} else if err != nil {
 		return nil, err
 	}

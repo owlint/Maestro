@@ -2,7 +2,6 @@ package endpoint
 
 import (
 	"context"
-	"errors"
 	"math/rand"
 	"time"
 
@@ -82,9 +81,7 @@ func acquire(locker *redislock.Client, ctx context.Context, name string) (*redis
 	lock, err := locker.Obtain(ctx, name, 2*time.Second, &redislock.Options{
 		RetryStrategy: backoff,
 	})
-	if err == redislock.ErrNotObtained {
-		return nil, errors.New("Could not get a task from queue")
-	} else if err != nil {
+	if err != nil {
 		return nil, err
 	}
 
