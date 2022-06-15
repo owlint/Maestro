@@ -400,9 +400,12 @@ func (l TaskServiceLocker) acquire(ctx context.Context, name string) (*redislock
 	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100+rand.Intn(50))*time.Millisecond), 10)
 
 	// Obtain lock with retry
-	lock, err := l.locker.Obtain(ctx, name, 2*time.Second, &redislock.Options{
+	lock, err := l.locker.Obtain(ctx, name, 10*time.Second, &redislock.Options{
 		RetryStrategy: backoff,
 	})
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = redislock.ErrNotObtained
+	}
 	if err == redislock.ErrNotObtained {
 		return nil, fmt.Errorf("Could not get lock %s", name)
 	} else if err != nil {

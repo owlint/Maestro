@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"context"
+	"errors"
 	"math/rand"
 	"time"
 
@@ -78,9 +79,12 @@ func acquire(locker *redislock.Client, ctx context.Context, name string) (*redis
 	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100+rand.Intn(50))*time.Millisecond), 10)
 
 	// Obtain lock with retry
-	lock, err := locker.Obtain(ctx, name, 2*time.Second, &redislock.Options{
+	lock, err := locker.Obtain(ctx, name, 10*time.Second, &redislock.Options{
 		RetryStrategy: backoff,
 	})
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = redislock.ErrNotObtained
+	}
 	if err != nil {
 		return nil, err
 	}

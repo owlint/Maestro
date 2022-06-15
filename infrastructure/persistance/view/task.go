@@ -298,9 +298,12 @@ func (v TaskViewLocker) acquire(ctx context.Context, name string) (*redislock.Lo
 	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100+rand.Intn(50))*time.Millisecond), 10)
 
 	// Obtain lock with retry
-	lock, err := v.locker.Obtain(ctx, name, 2*time.Second, &redislock.Options{
+	lock, err := v.locker.Obtain(ctx, name, 10*time.Second, &redislock.Options{
 		RetryStrategy: backoff,
 	})
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = redislock.ErrNotObtained
+	}
 	if err != nil {
 		return nil, err
 	}
