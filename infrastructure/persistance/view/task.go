@@ -77,7 +77,8 @@ func (v TaskViewImpl) ByID(ctx context.Context, taskID string) (*domain.Task, er
 func (v TaskViewImpl) NextInQueue(ctx context.Context, queue string) (*domain.Task, error) {
 	tasks, err := v.InQueue(ctx, queue)
 	if err != nil {
-		return nil, err
+		panic(err)
+		// return nil, err
 	}
 
 	now := time.Now().Unix()
@@ -264,11 +265,15 @@ func (v TaskViewLocker) ByID(ctx context.Context, taskID string) (*domain.Task, 
 func (v TaskViewLocker) NextInQueue(ctx context.Context, queue string) (*domain.Task, error) {
 	lock, err := v.acquire(ctx, queue)
 	if err != nil {
-		return nil, err
+		panic(err)
+		// return nil, err
 	}
 	defer func() { lock.Release(ctx) }()
 
 	result, err := v.next.NextInQueue(ctx, queue)
+	if err != nil {
+		panic(err)
+	}
 
 	return result, err
 }

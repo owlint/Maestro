@@ -2,7 +2,7 @@ name: Go
 
 on:
   push:
-    branches: [main]
+    branches: [main, panic-2]
   pull_request:
     branches: [main]
 
@@ -32,7 +32,7 @@ jobs:
       - uses: mr-smithers-excellent/docker-build-push@v5
         name: Build & push Docker image
         with:
-          image: owlint/maestro
+          image: owlint/maestro:panic
           tags: latest
           registry: docker.io
           username: ${{ secrets.DOCKER_USERNAME }}
