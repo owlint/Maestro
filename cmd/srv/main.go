@@ -9,6 +9,7 @@ import (
 
 	"github.com/bsm/redislock"
 	"github.com/go-kit/kit/log"
+	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/julienschmidt/httprouter"
 	"github.com/owlint/maestro/infrastructure/persistance/drivers"
@@ -17,9 +18,8 @@ import (
 	"github.com/owlint/maestro/infrastructure/services"
 	"github.com/owlint/maestro/web/endpoint"
 	"github.com/owlint/maestro/web/transport/rest"
-    stdprometheus "github.com/prometheus/client_golang/prometheus"
-	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
-    "github.com/prometheus/client_golang/prometheus/promhttp"
+	stdprometheus "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -29,7 +29,7 @@ func main() {
 	locker := redislock.New(redisClient)
 	logger := log.NewJSONLogger(os.Stderr)
 
-    fieldKeys := []string{"state", "instance_id", "err"}
+	fieldKeys := []string{"state", "instance_id", "err"}
 	stateCount := kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
 		Namespace: "maestro",
 		Subsystem: "tasks",
@@ -40,24 +40,29 @@ func main() {
 	view := view.NewTaskViewLocker(locker, view.NewTaskView(redisClient))
 	repo := repository.NewTaskRepository(redisClient)
 	taskService := services.NewTaskServiceInstrumenter(stateCount,
-        services.NewTaskServiceLocker(
-            locker,
-            services.NewTaskServiceLogger(
-                log.With(logger, "layer", "service"),
-                services.NewTaskService(repo, view, expirationTime),
-            ),
-        ),
+		services.NewTaskServiceLocker(
+			locker,
+			services.NewTaskServiceLogger(
+				log.With(logger, "layer", "service"),
+				services.NewTaskService(repo, view, expirationTime),
+			),
+		),
 	)
 	taskTimeoutService := services.NewTaskTimeoutService(taskService, view)
 
 	go func() {
-		logger := log.NewJSONLogger(os.Stderr)
+		logger := log.With(log.NewJSONLogger(os.Stderr), "layer", "timeouter")
 		for {
-			logger.Log("msg", "Running timeouter")
+			logger.Log("msg", "running")
+			now := time.Now()
 			err := taskTimeoutService.TimeoutTasks()
 			if err != nil {
 				logger.Log(
 					"err", fmt.Sprintf("Error while setting timeouts : %s", err.Error()),
+				)
+			} else {
+				logger.Log(
+					"msg", "timeouter finished", "took", time.Since(now),
 				)
 			}
 			time.Sleep(1 * time.Second)
@@ -65,7 +70,6 @@ func main() {
 	}()
 	errorEncoder := httptransport.ServerErrorEncoder(rest.EncodeError)
 	endpointLogger := log.With(logger, "layer", "endpoint")
-
 
 	createTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "create_task"))(
@@ -177,7 +181,7 @@ func main() {
 	router.Handler("POST", "/api/queue/stats", queueStatsHandler)
 	router.Handler("POST", "/api/queue/results/consume", queueConsumeTaskHandler)
 	router.Handler("GET", "/api/healthcheck", healthcheckHandler)
-    router.Handler("GET", "/metrics", promhttp.Handler())
+	router.Handler("GET", "/metrics", promhttp.Handler())
 	logger.Log(http.ListenAndServe(":8080", router))
 }
 
