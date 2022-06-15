@@ -268,7 +268,7 @@ func (v TaskViewLocker) NextInQueue(ctx context.Context, queue string) (*domain.
 		if err != redislock.ErrNotObtained {
 			panic(err)
 		}
-		// return nil, err
+		return nil, err
 	}
 	defer func() { lock.Release(ctx) }()
 
