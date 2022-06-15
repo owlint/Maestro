@@ -39,7 +39,8 @@ func QueueNextEndpoint(
 				err = nil
 				next = nil
 			} else if err != nil {
-				return TaskStateResponse{nil, err.Error()}, err
+				panic(err)
+				// return TaskStateResponse{nil, err.Error()}, err
 			}
 
 			if next == nil {
@@ -50,7 +51,8 @@ func QueueNextEndpoint(
 			if err == redislock.ErrNotObtained {
 				return TaskStateResponse{nil, ""}, nil
 			} else if err != nil {
-				return TaskStateResponse{nil, err.Error()}, err
+				panic(err)
+				// return TaskStateResponse{nil, err.Error()}, err
 			}
 
 			next, err = stateView.ByID(ctx, next.TaskID)
@@ -61,7 +63,8 @@ func QueueNextEndpoint(
 			if next.State() == "pending" {
 				err = svc.Select(next.TaskID)
 				if err != nil {
-					return TaskStateResponse{nil, err.Error()}, err
+					panic(err)
+					// return TaskStateResponse{nil, err.Error()}, err
 				}
 				selected = true
 				lock.Release(ctx)
