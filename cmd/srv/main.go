@@ -51,11 +51,13 @@ func main() {
 	taskTimeoutService := services.NewTaskTimeoutService(taskService, view)
 
 	go func() {
+		logger := log.NewJSONLogger(os.Stderr)
 		for {
+			logger.Log("msg", "Running timeouter")
 			err := taskTimeoutService.TimeoutTasks()
 			if err != nil {
-				fmt.Printf(
-					"Error while setting timeouts : %s", err.Error(),
+				logger.Log(
+					"err", fmt.Sprintf("Error while setting timeouts : %s", err.Error()),
 				)
 			}
 			time.Sleep(1 * time.Second)
