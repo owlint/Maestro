@@ -34,12 +34,3 @@ func DecodeFailRequest(_ context.Context, r *http.Request) (interface{}, error) 
 	}
 	return request, nil
 }
-
-// DecodeTimeoutRequest decode a complete task request
-func DecodeTimeoutRequest(_ context.Context, r *http.Request) (interface{}, error) {
-	var request endpoint.TimeoutTaskRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		return nil, err
-	}
-	return request, nil
-}

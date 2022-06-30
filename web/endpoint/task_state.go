@@ -111,36 +111,3 @@ func unmarshalFailTaskRequest(request interface{}) (*FailTaskRequest, error) {
 	}
 	return &req, nil
 }
-
-// TimeoutTaskRequest is the request to complete a task
-type TimeoutTaskRequest struct {
-	TaskID string `json:"task_id"`
-}
-
-// TimeoutTaskResponse is the response of a task complete
-type TimeoutTaskResponse struct {
-	Error string `json:"error,omitempty"`
-}
-
-// TimeoutTaskEndpoint creates a endpoint for task complete
-func TimeoutTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
-	return func(_ context.Context, request interface{}) (interface{}, error) {
-		req, err := unmarshalTimeoutTaskRequest(request)
-		if err != nil {
-			return TimeoutTaskResponse{err.Error()}, taskerrors.ValidationError{err}
-		}
-		err = svc.Timeout(req.TaskID)
-		if err != nil {
-			return TimeoutTaskResponse{err.Error()}, err
-		}
-		return TimeoutTaskResponse{""}, nil
-	}
-}
-
-func unmarshalTimeoutTaskRequest(request interface{}) (*TimeoutTaskRequest, error) {
-	req := request.(TimeoutTaskRequest)
-	if req.TaskID == "" {
-		return nil, errors.New("task_id is a required parameter")
-	}
-	return &req, nil
-}

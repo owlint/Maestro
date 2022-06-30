@@ -1,11 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/bsm/redislock"
 	"github.com/go-kit/kit/log"
@@ -48,26 +46,7 @@ func main() {
 			),
 		),
 	)
-	taskTimeoutService := services.NewTaskTimeoutService(taskService, view)
 
-	go func() {
-		logger := log.With(log.NewJSONLogger(os.Stderr), "layer", "timeouter")
-		for {
-			logger.Log("msg", "running")
-			now := time.Now()
-			err := taskTimeoutService.TimeoutTasks()
-			if err != nil {
-				logger.Log(
-					"err", fmt.Sprintf("Error while setting timeouts : %s", err.Error()),
-				)
-			} else {
-				logger.Log(
-					"msg", "timeouter finished", "took", time.Since(now),
-				)
-			}
-			time.Sleep(1 * time.Second)
-		}
-	}()
 	errorEncoder := httptransport.ServerErrorEncoder(rest.EncodeError)
 	endpointLogger := log.With(logger, "layer", "endpoint")
 
@@ -127,11 +106,12 @@ func main() {
 		rest.EncodeJSONResponse,
 		errorEncoder,
 	)
+	// timeout handler will now just fail the task, there should be now reason to make a task timeout from an external service if the task has not yet expired
 	timeoutTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "fail_task"))(
-			endpoint.TimeoutTaskEndpoint(taskService),
+			endpoint.FailTaskEndpoint(taskService),
 		),
-		rest.DecodeTimeoutRequest,
+		rest.DecodeFailRequest,
 		rest.EncodeJSONResponse,
 		errorEncoder,
 	)

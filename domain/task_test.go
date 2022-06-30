@@ -27,6 +27,12 @@ func TestState(t *testing.T) {
 
 	assert.Equal(t, task.State(), "pending")
 }
+
+func TestStateTimedout(t *testing.T) {
+	task := NewTask("laurent", "test", "payload", 0, 3)
+
+	assert.Equal(t, task.State(), "timedout")
+}
 func TestRetries(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 3)
 

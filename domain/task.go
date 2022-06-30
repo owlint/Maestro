@@ -152,6 +152,11 @@ func (t *Task) Payload() string {
 
 // State returns the state of the task
 func (t *Task) State() string {
+	now := time.Now().Unix()
+	if (t.state == "pending" || t.state == "running") && now >= t.UpdatedAt()+int64(t.GetTimeout()){
+		return "timedout"
+	}
+
 	return t.state
 }
 

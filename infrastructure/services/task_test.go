@@ -28,6 +28,29 @@ func TestCreate(t *testing.T) {
 	exist, err := view.Exists(ctx, taskID)
 	assert.Nil(t, err)
 	assert.True(t, exist)
+
+	ttl, err := taskTTL(ctx, redis, taskID)
+	assert.Nil(t, err)
+	assert.Equal(t, 303, int(ttl.Seconds()))
+}
+
+func TestCreateNotBefore(t *testing.T) {
+	ctx := context.Background()
+	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
+	view := view.NewTaskView(redis)
+	taskRepo := repository.NewTaskRepository(redis)
+	service := NewTaskService(taskRepo, view, 300)
+
+	taskID, err := service.Create("owner", "test", 3, 5, "", time.Now().Add(time.Duration(100)*time.Second).Unix())
+	assert.Nil(t, err)
+
+	exist, err := view.Exists(ctx, taskID)
+	assert.Nil(t, err)
+	assert.True(t, exist)
+
+	ttl, err := taskTTL(ctx, redis, taskID)
+	assert.Nil(t, err)
+	assert.Equal(t, 403, int(ttl.Seconds()))
 }
 
 func TestSelect(t *testing.T) {
@@ -46,6 +69,10 @@ func TestSelect(t *testing.T) {
 	task, err := view.ByID(ctx, taskID)
 	assert.Nil(t, err)
 	assert.Equal(t, "running", task.State())
+
+	ttl, err := taskTTL(ctx, redis, taskID)
+	assert.Nil(t, err)
+	assert.Equal(t, 303, int(ttl.Seconds()))
 }
 
 func TestSelectUnknown(t *testing.T) {
@@ -75,7 +102,7 @@ func TestComplete(t *testing.T) {
 	assert.Equal(t, "completed", task.State())
 	ttl, err := taskTTL(ctx, redis, taskID)
 	assert.Nil(t, err)
-	assert.True(t, ttl.Seconds() > 200)
+	assert.Equal(t, 300, int(ttl.Seconds()))
 }
 func TestCompleteExpiration(t *testing.T) {
 	ctx := context.Background()
@@ -187,58 +214,6 @@ func TestFailedUnknown(t *testing.T) {
 	service := NewTaskService(taskRepo, view, 300)
 
 	err := service.Fail(uuid.New().String())
-	assert.NotNil(t, err)
-}
-func TestTimeout(t *testing.T) {
-	ctx := context.Background()
-	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
-	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 1, "", 0)
-	assert.Nil(t, err)
-	err = service.Select(taskID)
-
-	err = service.Timeout(taskID)
-	assert.Nil(t, err)
-
-	task, err := view.ByID(ctx, taskID)
-	assert.Nil(t, err)
-	assert.Equal(t, "pending", task.State())
-	assert.Equal(t, int32(1), task.Retries())
-}
-
-func TestTimeouted(t *testing.T) {
-	ctx := context.Background()
-	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
-	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 1, "", 0)
-	assert.Nil(t, err)
-	service.Select(taskID)
-	service.Timeout(taskID)
-	service.Select(taskID)
-
-	err = service.Timeout(taskID)
-	assert.Nil(t, err)
-
-	task, err := view.ByID(ctx, taskID)
-	assert.Nil(t, err)
-	assert.Equal(t, "timedout", task.State())
-	assert.Equal(t, int32(1), task.Retries())
-
-	ttl, err := taskTTL(ctx, redis, taskID)
-	assert.Nil(t, err)
-	assert.True(t, ttl.Seconds() > 200)
-}
-func TestTimeoutedUnknown(t *testing.T) {
-	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
-	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
-
-	err := service.Timeout(uuid.New().String())
 	assert.NotNil(t, err)
 }
 

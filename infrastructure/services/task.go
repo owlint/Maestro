@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/bsm/redislock"
@@ -22,7 +21,6 @@ type TaskService interface {
 	Select(taskID string) error
 	Fail(taskID string) error
 	Cancel(taskID string) error
-	Timeout(taskID string) error
 	Complete(taskID string, result string) error
 	Delete(taskID string) error
 	ConsumeQueueResult(queue string) (*domain.Task, error)
@@ -66,6 +64,12 @@ func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, r
 	if err != nil {
 		return "", err
 	}
+
+	err = s.updateTTL(*task)
+	if err != nil {
+		return "", err
+	}
+
 	return task.ObjectID(), nil
 }
 
@@ -86,7 +90,12 @@ func (s TaskServiceImpl) Select(taskID string) error {
 		return err
 	}
 
-	return s.repo.Save(ctx, *task)
+	err = s.repo.Save(ctx, *task)
+	if err != nil {
+		return err
+	}
+
+	return s.updateTTL(*task)
 }
 
 // Delete deletes a task
@@ -117,38 +126,9 @@ func (s TaskServiceImpl) Fail(taskID string) error {
 	}
 
 	if task.State() == "failed" {
-		return s.repo.SetTTL(ctx, taskID, 300)
+		return s.repo.SetTTL(ctx, taskID, s.resultExpiration)
 	} else {
-		return nil
-	}
-}
-
-// Timeout marks a task as timedout
-func (s TaskServiceImpl) Timeout(taskID string) error {
-	ctx := context.Background()
-	if exist, err := s.view.Exists(ctx, taskID); !exist || err != nil {
-		return fmt.Errorf("Could not find task : %s (or error occured %v)", taskID, err)
-	}
-
-	task, err := s.view.ByID(ctx, taskID)
-	if err != nil {
-		return err
-	}
-
-	err = task.Timeout()
-	if err != nil {
-		return err
-	}
-
-	err = s.repo.Save(ctx, *task)
-	if err != nil {
-		return err
-	}
-
-	if task.State() == "timedout" {
-		return s.repo.SetTTL(ctx, taskID, 300)
-	} else {
-		return nil
+		return s.updateTTL(*task)
 	}
 }
 
@@ -199,7 +179,7 @@ func (s TaskServiceImpl) Cancel(taskID string) error {
 		return err
 	}
 
-	return s.repo.SetTTL(ctx, taskID, 300)
+	return s.repo.SetTTL(ctx, taskID, s.resultExpiration)
 }
 
 // ConsumeQueueResult consumes a "finished" item from the given queue
@@ -228,6 +208,22 @@ func (s TaskServiceImpl) ConsumeQueueResult(queue string) (*domain.Task, error) 
 	}
 
 	return oldestTask, nil
+}
+
+func (s TaskServiceImpl) updateTTL(task domain.Task) error {
+	if task.State() == "pending" || task.State() == "running" {
+		now := time.Now().Unix()
+		ttl := int(task.GetTimeout()) + s.resultExpiration
+
+		startAt := int(task.NotBefore() - now)
+		if startAt > 0 {
+			ttl += startAt
+		}
+
+		return s.repo.SetTTL(context.TODO(), task.ObjectID(), ttl)
+	}
+
+	return nil
 }
 
 // ############################################################################
@@ -312,18 +308,6 @@ func (l TaskServiceLogger) Cancel(taskID string) error {
 
 	return err
 }
-func (l TaskServiceLogger) Timeout(taskID string) error {
-	err := l.next.Timeout(taskID)
-	defer func() {
-		l.logger.Log(
-			"action", "timeout",
-			"error", err,
-			"task_id", taskID,
-		)
-	}()
-
-	return err
-}
 func (l TaskServiceLogger) Complete(taskID string, result string) error {
 	err := l.next.Complete(taskID, result)
 	defer func() {
@@ -355,9 +339,21 @@ func (l TaskServiceLocker) Create(owner string, taskQueue string, timeout int32,
 	return l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore)
 }
 func (l TaskServiceLocker) Select(taskID string) error {
+	ctx := context.Background()
+	lock, err := l.acquire(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	defer func() { lock.Release(ctx) }()
 	return l.next.Select(taskID)
 }
 func (l TaskServiceLocker) Delete(taskID string) error {
+	ctx := context.Background()
+	lock, err := l.acquire(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	defer func() { lock.Release(ctx) }()
 	return l.next.Delete(taskID)
 }
 func (l TaskServiceLocker) Fail(taskID string) error {
@@ -379,10 +375,13 @@ func (l TaskServiceLocker) ConsumeQueueResult(queue string) (*domain.Task, error
 	return l.next.ConsumeQueueResult(queue)
 }
 func (l TaskServiceLocker) Cancel(taskID string) error {
+	ctx := context.Background()
+	lock, err := l.acquire(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	defer func() { lock.Release(ctx) }()
 	return l.next.Cancel(taskID)
-}
-func (l TaskServiceLocker) Timeout(taskID string) error {
-	return l.next.Timeout(taskID)
 }
 func (l TaskServiceLocker) Complete(taskID string, result string) error {
 	ctx := context.Background()
@@ -472,15 +471,6 @@ func (l TaskServiceInstrumenter) Cancel(taskID string) error {
 	err := l.next.Cancel(taskID)
 	defer func() {
 		lvs := []string{"state", "canceled", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
-		l.counter.With(lvs...).Add(1)
-	}()
-
-	return err
-}
-func (l TaskServiceInstrumenter) Timeout(taskID string) error {
-	err := l.next.Timeout(taskID)
-	defer func() {
-		lvs := []string{"state", "timedout", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
