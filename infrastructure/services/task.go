@@ -212,19 +212,15 @@ func (s TaskServiceImpl) ConsumeQueueResult(queue string) (*domain.Task, error) 
 }
 
 func (s TaskServiceImpl) updateTTL(task domain.Task) error {
-	if task.State() == "pending" || task.State() == "running" {
-		now := time.Now().Unix()
-		ttl := int(task.GetTimeout()) + s.resultExpiration
+	now := time.Now().Unix()
+	ttl := int(task.GetTimeout()) + s.resultExpiration
 
-		startAt := int(task.NotBefore() - now)
-		if startAt > 0 {
-			ttl += startAt
-		}
-
-		return s.repo.SetTTL(context.TODO(), task.ObjectID(), ttl)
+	startAt := int(task.NotBefore() - now)
+	if startAt > 0 {
+		ttl += startAt
 	}
 
-	return nil
+	return s.repo.SetTTL(context.TODO(), task.ObjectID(), ttl)
 }
 
 // ############################################################################

@@ -10,6 +10,7 @@ import (
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/julienschmidt/httprouter"
+	env "github.com/owlint/go-env"
 	"github.com/owlint/maestro/infrastructure/persistance/drivers"
 	"github.com/owlint/maestro/infrastructure/persistance/repository"
 	"github.com/owlint/maestro/infrastructure/persistance/view"
@@ -21,7 +22,7 @@ import (
 )
 
 func main() {
-	expirationTime := getResultExpirationTime()
+	expirationTime := env.GetDefaultIntFromEnv("RESULT_EXPIRATION", "900")
 	redisClient := drivers.ConnectRedis(getRedisConnectionOptions())
 	defer redisClient.Close()
 	locker := redislock.New(redisClient)
@@ -163,17 +164,6 @@ func main() {
 	router.Handler("GET", "/api/healthcheck", healthcheckHandler)
 	router.Handler("GET", "/metrics", promhttp.Handler())
 	logger.Log(http.ListenAndServe(":8080", router))
-}
-
-func getResultExpirationTime() int {
-	if val, exist := os.LookupEnv("RESULT_EXPIRATION"); exist {
-		expiration, err := strconv.Atoi(val)
-		if err != nil {
-			panic(err)
-		}
-		return expiration
-	}
-	return 300
 }
 
 func getRedisConnectionOptions() drivers.RedisOptions {
