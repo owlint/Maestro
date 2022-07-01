@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/bsm/redislock"
@@ -240,7 +239,6 @@ func (v TaskViewLocker) InQueue(ctx context.Context, queue string) ([]*domain.Ta
 func (v TaskViewLocker) QueueStats(ctx context.Context, queue string) (map[string][]string, error) {
 	return v.next.QueueStats(ctx, queue)
 }
-
 
 func (v TaskViewLocker) acquire(ctx context.Context, name string) (*redislock.Lock, error) {
 	// Retry every ~100ms, for up-to 20x
