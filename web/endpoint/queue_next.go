@@ -55,6 +55,7 @@ func QueueNextEndpoint(
 			}
 
 			next, err = stateView.ByID(ctx, next.TaskID)
+			lock.Release(ctx)
 			if err != nil {
 				return TaskStateResponse{nil, err.Error()}, err
 			}
@@ -65,7 +66,6 @@ func QueueNextEndpoint(
 					return TaskStateResponse{nil, err.Error()}, err
 				}
 				selected = true
-				lock.Release(ctx)
 			}
 		}
 
@@ -75,8 +75,8 @@ func QueueNextEndpoint(
 }
 
 func acquire(locker *redislock.Client, ctx context.Context, name string) (*redislock.Lock, error) {
-	// Retry every 100ms, for up-to 3x
-	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100+rand.Intn(50))*time.Millisecond), 10)
+	// Retry every ~500ms, for up-to 5x
+	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(500+rand.Intn(50))*time.Millisecond), 5)
 
 	// Obtain lock with retry
 	lock, err := locker.Obtain(ctx, name, 10*time.Second, &redislock.Options{
