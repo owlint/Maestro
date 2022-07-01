@@ -243,8 +243,8 @@ func (v TaskViewLocker) QueueStats(ctx context.Context, queue string) (map[strin
 
 
 func (v TaskViewLocker) acquire(ctx context.Context, name string) (*redislock.Lock, error) {
-	// Retry every ~500ms, for up-to 5x
-	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(500+rand.Intn(50))*time.Millisecond), 5)
+	// Retry every ~100ms, for up-to 20x
+	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100)*time.Millisecond), 20)
 
 	// Obtain lock with retry
 	lock, err := v.locker.Obtain(ctx, name, 10*time.Second, &redislock.Options{

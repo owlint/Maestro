@@ -392,8 +392,8 @@ func (l TaskServiceLocker) Complete(taskID string, result string) error {
 }
 
 func (l TaskServiceLocker) acquire(ctx context.Context, name string) (*redislock.Lock, error) {
-	// Retry every 100ms, for up-to 3x
-	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100+rand.Intn(50))*time.Millisecond), 10)
+	// Retry every 100ms, for up-to 20x
+	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100)*time.Millisecond), 20)
 
 	// Obtain lock with retry
 	lock, err := l.locker.Obtain(ctx, name, 10*time.Second, &redislock.Options{
