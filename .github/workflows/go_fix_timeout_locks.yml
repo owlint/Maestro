@@ -1,8 +1,8 @@
-name: Go
+name: Go-fix-timeout-locks
 
 on:
   push:
-    branches: [main]
+    branches: [fix-timeout-locks]
 
 jobs:
   build:
@@ -31,7 +31,7 @@ jobs:
         name: Build & push Docker image
         with:
           image: owlint/maestro
-          tags: latest
+          tags: fix-timeout-locks
           registry: docker.io
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
