@@ -3,7 +3,6 @@ package endpoint
 import (
 	"context"
 	"errors"
-	"math/rand"
 	"time"
 
 	"github.com/bsm/redislock"
