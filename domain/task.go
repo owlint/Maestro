@@ -167,8 +167,8 @@ func (t *Task) Retries() int32 {
 
 // Select mark a task as selected by a worker
 func (t *Task) Select() error {
-	if t.state != "pending" {
-		return fmt.Errorf("A task can be selected only if it is in pending state : %s", t.state)
+	if t.State() != "pending" {
+		return fmt.Errorf("A task can be selected only if it is in pending state : %s", t.State())
 	}
 	t.state = "running"
 	t.updated()
@@ -178,7 +178,7 @@ func (t *Task) Select() error {
 
 // Complete mark a task as completed
 func (t *Task) Complete(result string) error {
-	if t.state != "running" {
+	if t.State() != "running" {
 		return errors.New("A task can be completed only if it is in running state")
 	}
 	t.state = "completed"
@@ -190,7 +190,7 @@ func (t *Task) Complete(result string) error {
 
 // Result returns the result of the task if it is completed and an error otherwise
 func (t *Task) Result() (string, error) {
-	if t.state != "completed" {
+	if t.State() != "completed" {
 		return "", errors.New("You can only have the result of a completed task")
 	}
 	return t.result, nil
@@ -198,7 +198,7 @@ func (t *Task) Result() (string, error) {
 
 // Cancel mark a task as completed
 func (t *Task) Cancel() error {
-	if t.state != "running" && t.state != "pending" {
+	if t.State() != "running" && t.State() != "pending" {
 		return errors.New("A task can be cancelled only if it is in running or pending state")
 	}
 	t.state = "canceled"
@@ -209,7 +209,7 @@ func (t *Task) Cancel() error {
 
 // Fail mark a task as failed
 func (t *Task) Fail() error {
-	if t.state != "running" {
+	if t.State() != "running" {
 		return errors.New("A task can be failed only if it is in running state")
 	}
 
@@ -229,11 +229,11 @@ func (t *Task) GetTimeout() int32 {
 
 // Timeout mark a task as timedout
 func (t *Task) Timeout() error {
-	if t.state != "running" && t.state != "pending" {
+	if t.State() != "running" && t.State() != "pending" {
 		return fmt.Errorf("Task %s can be timed out only if it is in pending/running state", t.TaskID)
 	}
 
-	if t.retries < t.maxRetries && t.state != "pending" {
+	if t.retries < t.maxRetries && t.State() != "pending" {
 		t.retry()
 	} else {
 		t.state = "timedout"
