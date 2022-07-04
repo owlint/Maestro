@@ -107,15 +107,6 @@ func main() {
 		rest.EncodeJSONResponse,
 		errorEncoder,
 	)
-	// timeout handler will now just fail the task, there should be now reason to make a task timeout from an external service if the task has not yet expired
-	timeoutTaskHandler := httptransport.NewServer(
-		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "fail_task"))(
-			endpoint.FailTaskEndpoint(taskService),
-		),
-		rest.DecodeFailRequest,
-		rest.EncodeJSONResponse,
-		errorEncoder,
-	)
 	queueNextTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "next"))(
 			endpoint.QueueNextEndpoint(taskService, view, locker),
@@ -157,7 +148,7 @@ func main() {
 	router.Handler("POST", "/api/task/cancel", cancelTaskHandler)
 	router.Handler("POST", "/api/task/fail", failTaskHandler)
 	router.Handler("POST", "/api/task/delete", deleteTaskHandler)
-	router.Handler("POST", "/api/task/timeout", timeoutTaskHandler)
+	router.Handler("POST", "/api/task/timeout", failTaskHandler)
 	router.Handler("POST", "/api/queue/next", queueNextTaskHandler)
 	router.Handler("POST", "/api/queue/stats", queueStatsHandler)
 	router.Handler("POST", "/api/queue/results/consume", queueConsumeTaskHandler)

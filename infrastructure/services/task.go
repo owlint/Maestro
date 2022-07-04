@@ -343,7 +343,7 @@ func (l TaskServiceLocker) Select(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.Select(taskID)
 }
 func (l TaskServiceLocker) Delete(taskID string) error {
@@ -352,7 +352,7 @@ func (l TaskServiceLocker) Delete(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.Delete(taskID)
 }
 func (l TaskServiceLocker) Fail(taskID string) error {
@@ -361,7 +361,7 @@ func (l TaskServiceLocker) Fail(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.Fail(taskID)
 }
 func (l TaskServiceLocker) ConsumeQueueResult(queue string) (*domain.Task, error) {
@@ -370,7 +370,7 @@ func (l TaskServiceLocker) ConsumeQueueResult(queue string) (*domain.Task, error
 	if err != nil {
 		return nil, err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.ConsumeQueueResult(queue)
 }
 func (l TaskServiceLocker) Cancel(taskID string) error {
@@ -379,7 +379,7 @@ func (l TaskServiceLocker) Cancel(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.Cancel(taskID)
 }
 func (l TaskServiceLocker) Complete(taskID string, result string) error {
@@ -388,7 +388,7 @@ func (l TaskServiceLocker) Complete(taskID string, result string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 
 	return l.next.Complete(taskID, result)
 }

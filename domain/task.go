@@ -27,7 +27,7 @@ type Task struct {
 
 // NewTask creates a new task
 func NewTask(owner string, taskQueue string, payload string, timeout int32, maxRetries int32) *Task {
-    now := time.Now().Unix()
+	now := time.Now().Unix()
 	taskID := fmt.Sprintf("Task-%s", uuid.New().String())
 	return &Task{
 		TaskID:     taskID,
@@ -46,10 +46,10 @@ func NewTask(owner string, taskQueue string, payload string, timeout int32, maxR
 
 // NewTask creates a new task
 func NewFutureTask(owner string, taskQueue string, payload string, timeout int32, maxRetries int32, notBefore int64) (*Task, error) {
-    now := time.Now().Unix()
-    if notBefore < now {
-        return nil, errors.New("notBefore should be in the future")
-    }
+	now := time.Now().Unix()
+	if notBefore < now {
+		return nil, errors.New("notBefore should be in the future")
+	}
 
 	taskID := fmt.Sprintf("Task-%s", uuid.New().String())
 	return &Task{
@@ -132,7 +132,7 @@ func (t *Task) UpdatedAt() int64 {
 }
 
 func (t *Task) NotBefore() int64 {
-    return t.notBefore
+	return t.notBefore
 }
 
 // Owner returns the owner of this task
@@ -153,7 +153,7 @@ func (t *Task) Payload() string {
 // State returns the state of the task
 func (t *Task) State() string {
 	now := time.Now().Unix()
-	if (t.state == "pending" || t.state == "running") && now >= t.UpdatedAt()+int64(t.GetTimeout()){
+	if (t.state == "pending" || t.state == "running") && now >= t.UpdatedAt()+int64(t.GetTimeout()) {
 		return "timedout"
 	}
 
@@ -225,22 +225,6 @@ func (t *Task) Fail() error {
 
 func (t *Task) GetTimeout() int32 {
 	return t.timeout
-}
-
-// Timeout mark a task as timedout
-func (t *Task) Timeout() error {
-	if t.State() != "running" && t.State() != "pending" {
-		return fmt.Errorf("Task %s can be timed out only if it is in pending/running state", t.TaskID)
-	}
-
-	if t.retries < t.maxRetries && t.State() != "pending" {
-		t.retry()
-	} else {
-		t.state = "timedout"
-		t.updated()
-	}
-
-	return nil
 }
 
 func (t *Task) updated() {
