@@ -338,12 +338,6 @@ func (l TaskServiceLocker) Create(owner string, taskQueue string, timeout int32,
 	return l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore)
 }
 func (l TaskServiceLocker) Select(taskID string) error {
-	ctx := context.Background()
-	lock, err := l.acquire(ctx, taskID)
-	if err != nil {
-		return err
-	}
-	defer lock.Release(ctx)
 	return l.next.Select(taskID)
 }
 func (l TaskServiceLocker) Delete(taskID string) error {

@@ -46,24 +46,14 @@ func QueueNextEndpoint(
 				return TaskStateResponse{nil, ""}, nil
 			}
 
-			lock, err := acquire(locker, ctx, next.TaskID)
+			next, err = selectTask(svc, stateView, locker, ctx, next)
 			if err == redislock.ErrNotObtained {
 				return TaskStateResponse{nil, ""}, nil
 			} else if err != nil {
 				return TaskStateResponse{nil, err.Error()}, err
 			}
 
-			next, err = stateView.ByID(ctx, next.TaskID)
-			lock.Release(ctx)
-			if err != nil {
-				return TaskStateResponse{nil, err.Error()}, err
-			}
-
-			if next.State() == "pending" {
-				err = svc.Select(next.TaskID)
-				if err != nil {
-					return TaskStateResponse{nil, err.Error()}, err
-				}
+			if next != nil {
 				selected = true
 			}
 		}
@@ -71,6 +61,33 @@ func QueueNextEndpoint(
 		taskDTO := fromTask(next)
 		return TaskStateResponse{&taskDTO, ""}, nil
 	}
+}
+
+func selectTask(svc services.TaskService,
+	stateView view.TaskView,
+	locker *redislock.Client,
+	ctx context.Context,
+	task *domain.Task) (*domain.Task, error) {
+	lock, err := acquire(locker, ctx, task.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	defer lock.Release(ctx)
+
+	task, err = stateView.ByID(ctx, task.TaskID)
+	if err != nil {
+		return nil, err
+	}
+
+	if task.State() == "pending" {
+		err = svc.Select(task.TaskID)
+		if err != nil {
+			return nil, err
+		}
+		return task, nil
+	}
+
+	return nil, nil
 }
 
 func acquire(locker *redislock.Client, ctx context.Context, name string) (*redislock.Lock, error) {
