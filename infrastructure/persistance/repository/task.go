@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -23,17 +22,18 @@ func NewTaskRepository(redis *redis.Client) TaskRepository {
 
 func (r TaskRepository) Save(ctx context.Context, t domain.Task) error {
 	payload := map[string]interface{}{
-		"task_id":    t.TaskID,
-		"owner":      t.Owner(),
-		"task_queue": t.Queue(),
-		"payload":    t.Payload(),
-		"state":      t.State(),
-		"timeout":    t.GetTimeout(),
-		"retries":    t.Retries(),
-		"maxRetries": t.MaxRetries(),
-		"created_at": t.CreatedAt(),
-		"updated_at": t.UpdatedAt(),
-		"not_before": t.NotBefore(),
+		"task_id":      t.TaskID,
+		"owner":        t.Owner(),
+		"task_queue":   t.Queue(),
+		"payload":      t.Payload(),
+		"state":        t.State(),
+		"timeout":      t.GetTimeout(),
+		"startTimeout": t.StartTimeout(),
+		"retries":      t.Retries(),
+		"maxRetries":   t.MaxRetries(),
+		"created_at":   t.CreatedAt(),
+		"updated_at":   t.UpdatedAt(),
+		"not_before":   t.NotBefore(),
 	}
 	if t.State() == "completed" {
 		result, _ := t.Result()
@@ -45,39 +45,48 @@ func (r TaskRepository) Save(ctx context.Context, t domain.Task) error {
 }
 
 func (r TaskRepository) SetTTL(ctx context.Context, taskID string, ttl int) error {
-	keysCmd := r.redis.Keys(ctx, fmt.Sprintf("*-%s", taskID))
-	if keysCmd.Err() != nil {
-		return keysCmd.Err()
-	}
-
-	keys, err := keysCmd.Result()
+	key, err := r.taskIDToKey(ctx, taskID)
 	if err != nil {
 		return err
 	}
 
-	if len(keys) != 1 {
-		return taskerror.NotFoundError{errors.New("No single task match this id")}
-	}
-
-	expireCmd := r.redis.Expire(ctx, keys[0], time.Duration(ttl)*time.Second)
+	expireCmd := r.redis.Expire(ctx, key, time.Duration(ttl)*time.Second)
 	return expireCmd.Err()
 }
 
-func (r TaskRepository) Delete(ctx context.Context, taskID string) error {
-	keysCmd := r.redis.Keys(ctx, fmt.Sprintf("*-%s", taskID))
-	if keysCmd.Err() != nil {
-		return keysCmd.Err()
-	}
-
-	keys, err := keysCmd.Result()
+func (r TaskRepository) RemoveTTL(ctx context.Context, taskID string) error {
+	key, err := r.taskIDToKey(ctx, taskID)
 	if err != nil {
 		return err
 	}
 
-	if len(keys) != 1 {
-		return taskerror.NotFoundError{errors.New("No single task match this id")}
+	return r.redis.Persist(ctx, key).Err()
+}
+
+func (r TaskRepository) Delete(ctx context.Context, taskID string) error {
+	key, err := r.taskIDToKey(ctx, taskID)
+	if err != nil {
+		return err
 	}
 
-	expireCmd := r.redis.Del(ctx, keys[0])
+	expireCmd := r.redis.Del(ctx, key)
 	return expireCmd.Err()
+}
+
+func (r TaskRepository) taskIDToKey(ctx context.Context, taskID string) (string, error) {
+	keysCmd := r.redis.Keys(ctx, fmt.Sprintf("*-%s", taskID))
+	if keysCmd.Err() != nil {
+		return "", keysCmd.Err()
+	}
+
+	keys, err := keysCmd.Result()
+	if err != nil {
+		return "", err
+	}
+
+	if len(keys) != 1 {
+		return "", taskerror.NotFoundError{fmt.Errorf("%d tasks match this id", len(keys))}
+	}
+
+	return keys[0], nil
 }

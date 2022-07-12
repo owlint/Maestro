@@ -11,12 +11,14 @@ import (
 
 // CreateTaskRequest is a request to create a task
 type CreateTaskRequest struct {
-	Owner     string `json:"owner"`
-	Queue     string `json:"queue"`
-	Retries   int32  `json:"retries"`
-	Timeout   int32  `json:"timeout"`
-	Payload   string `json:"payload"`
-	NotBefore int64  `json:"not_before"`
+	Owner        string `json:"owner"`
+	Queue        string `json:"queue"`
+	Retries      int32  `json:"retries"`
+	Timeout      int32  `json:"timeout,omnitempty"`
+	RunTimeout   int32  `json:"run_timeout,omitempty"`
+	StartTimeout int32  `json:"start_timeout,omitempty"`
+	Payload      string `json:"payload"`
+	NotBefore    int64  `json:"not_before"`
 }
 
 // CreateTaskResponse is the response of a task creation
@@ -32,7 +34,11 @@ func CreateTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 		if err != nil {
 			return CreateTaskResponse{"", err.Error()}, taskerrors.ValidationError{err}
 		}
-		taskID, err := svc.Create(req.Owner, req.Queue, req.Timeout, req.Retries, req.Payload, req.NotBefore)
+		runTimeout := req.RunTimeout
+		if runTimeout == 0 {
+			runTimeout = req.Timeout
+		}
+		taskID, err := svc.Create(req.Owner, req.Queue, runTimeout, req.Retries, req.Payload, req.NotBefore, req.StartTimeout)
 		if err != nil {
 			return CreateTaskResponse{"", err.Error()}, err
 		}
@@ -42,20 +48,8 @@ func CreateTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 
 func unmarshalCreateTaskRequest(request interface{}) (*CreateTaskRequest, error) {
 	req := request.(CreateTaskRequest)
-	if req.Queue == "" {
-		return nil, errors.New("queue is a required parameter")
-	}
-	if req.Retries < 0 {
-		return nil, errors.New("retries must be >= 0")
-	}
-	if req.Timeout <= 0 {
-		return nil, errors.New("timeout must be > 0")
-	}
-	if req.NotBefore < 0 {
-		return nil, errors.New("not_before must be >= 0")
-	}
-	if req.Payload == "" {
-		return nil, errors.New("payload is a required field")
+	if err := checkTaskConsistency(req); err != nil {
+		return nil, err
 	}
 	return &req, nil
 }
@@ -80,7 +74,11 @@ func CreateTaskListEndpoint(svc services.TaskService) endpoint.Endpoint {
 		}
 		taskIDs := make([]string, len(req.Tasks))
 		for i, task := range req.Tasks {
-			taskID, err := svc.Create(task.Owner, task.Queue, task.Timeout, task.Retries, task.Payload, task.NotBefore)
+			runTimeout := task.RunTimeout
+			if runTimeout == 0 {
+				runTimeout = task.Timeout
+			}
+			taskID, err := svc.Create(task.Owner, task.Queue, runTimeout, task.Retries, task.Payload, task.NotBefore, task.StartTimeout)
 			if err != nil {
 				return CreateTaskResponse{"", err.Error()}, err
 			}
@@ -93,21 +91,31 @@ func CreateTaskListEndpoint(svc services.TaskService) endpoint.Endpoint {
 func unmarshalCreateTaskListRequest(request interface{}) (*CreateTaskListRequest, error) {
 	req := request.(CreateTaskListRequest)
 	for _, task := range req.Tasks {
-		if task.Queue == "" {
-			return nil, errors.New("queue is a taskuired parameter")
-		}
-		if task.Retries < 0 {
-			return nil, errors.New("retries must be >= 0")
-		}
-		if task.Timeout <= 0 {
-			return nil, errors.New("timeout must be > 0")
-		}
-		if task.NotBefore < 0 {
-			return nil, errors.New("not_before must be >= 0")
-		}
-		if task.Payload == "" {
-			return nil, errors.New("payload is a taskuired field")
+		if err := checkTaskConsistency(task); err != nil {
+			return nil, err
 		}
 	}
 	return &req, nil
+}
+
+func checkTaskConsistency(task CreateTaskRequest) error {
+	if task.Queue == "" {
+		return errors.New("queue is a required parameter")
+	}
+	if task.Retries < 0 {
+		return errors.New("retries must be >= 0")
+	}
+	if task.Timeout <= 0 && task.RunTimeout <= 0 {
+		return errors.New("timeout or run_timeout must be > 0")
+	}
+	if task.StartTimeout < 0 {
+		return errors.New("when set start_timeout should be > 0")
+	}
+	if task.NotBefore < 0 {
+		return errors.New("not_before must be >= 0")
+	}
+	if task.Payload == "" {
+		return errors.New("payload is a taskuired field")
+	}
+	return nil
 }

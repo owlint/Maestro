@@ -22,12 +22,26 @@ func TestCreate(t *testing.T) {
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
 
-	taskID, err := service.Create("owner", "test", 3, 5, "", 0)
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 	assert.Nil(t, err)
 
 	exist, err := view.Exists(ctx, taskID)
 	assert.Nil(t, err)
 	assert.True(t, exist)
+}
+func TestCreateTTL(t *testing.T) {
+	ctx := context.Background()
+	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
+	view := view.NewTaskView(redis)
+	taskRepo := repository.NewTaskRepository(redis)
+	service := NewTaskService(taskRepo, view, 300)
+
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 5)
+	assert.Nil(t, err)
+
+	ttlCmd := redis.TTL(ctx, fmt.Sprintf("test-%s", taskID))
+	assert.NoError(t, ttlCmd.Err())
+	assert.InDelta(t, 5, ttlCmd.Val().Seconds(), 1)
 }
 
 func TestSelect(t *testing.T) {
@@ -37,7 +51,7 @@ func TestSelect(t *testing.T) {
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
 
-	taskID, err := service.Create("owner", "test", 3, 5, "", 0)
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 	assert.Nil(t, err)
 
 	err = service.Select(taskID)
@@ -46,6 +60,27 @@ func TestSelect(t *testing.T) {
 	task, err := view.ByID(ctx, taskID)
 	assert.Nil(t, err)
 	assert.Equal(t, "running", task.State())
+}
+func TestSelectTTL(t *testing.T) {
+	ctx := context.Background()
+	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
+	view := view.NewTaskView(redis)
+	taskRepo := repository.NewTaskRepository(redis)
+	service := NewTaskService(taskRepo, view, 300)
+
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 5)
+	assert.Nil(t, err)
+
+	err = service.Select(taskID)
+	assert.Nil(t, err)
+
+	task, err := view.ByID(ctx, taskID)
+	assert.Nil(t, err)
+	assert.Equal(t, "running", task.State())
+
+	ttlCmd := redis.TTL(ctx, fmt.Sprintf("test-%s", taskID))
+	assert.NoError(t, ttlCmd.Err())
+	assert.InDelta(t, 0, ttlCmd.Val().Seconds(), 1)
 }
 
 func TestSelectUnknown(t *testing.T) {
@@ -63,7 +98,7 @@ func TestComplete(t *testing.T) {
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 5, "", 0)
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
 
@@ -83,7 +118,7 @@ func TestCompleteExpiration(t *testing.T) {
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 800)
-	taskID, err := service.Create("owner", "test", 3, 5, "", 0)
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
 
@@ -114,7 +149,7 @@ func TestCancel(t *testing.T) {
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
 
-	taskID, err := service.Create("owner", "test", 3, 5, "", 0)
+	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
 
@@ -144,7 +179,7 @@ func TestFail(t *testing.T) {
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 1, "", 0)
+	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
 
@@ -157,13 +192,36 @@ func TestFail(t *testing.T) {
 	assert.Equal(t, int32(1), task.Retries())
 }
 
+func TestFailTTL(t *testing.T) {
+	ctx := context.Background()
+	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
+	view := view.NewTaskView(redis)
+	taskRepo := repository.NewTaskRepository(redis)
+	service := NewTaskService(taskRepo, view, 300)
+	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5)
+	assert.Nil(t, err)
+	err = service.Select(taskID)
+
+	err = service.Fail(taskID)
+	assert.Nil(t, err)
+
+	task, err := view.ByID(ctx, taskID)
+	assert.Nil(t, err)
+	assert.Equal(t, "pending", task.State())
+	assert.Equal(t, int32(1), task.Retries())
+
+	ttlCmd := redis.TTL(ctx, fmt.Sprintf("test-%s", taskID))
+	assert.NoError(t, ttlCmd.Err())
+	assert.InDelta(t, 5, ttlCmd.Val().Seconds(), 1)
+}
+
 func TestFailed(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 1, "", 0)
+	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 	assert.Nil(t, err)
 	service.Select(taskID)
 	service.Fail(taskID)
@@ -195,7 +253,7 @@ func TestTimeout(t *testing.T) {
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 1, "", 0)
+	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
 
@@ -208,13 +266,36 @@ func TestTimeout(t *testing.T) {
 	assert.Equal(t, int32(1), task.Retries())
 }
 
+func TestTimeoutTTL(t *testing.T) {
+	ctx := context.Background()
+	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
+	view := view.NewTaskView(redis)
+	taskRepo := repository.NewTaskRepository(redis)
+	service := NewTaskService(taskRepo, view, 300)
+	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5)
+	assert.Nil(t, err)
+	err = service.Select(taskID)
+
+	err = service.Timeout(taskID)
+	assert.Nil(t, err)
+
+	task, err := view.ByID(ctx, taskID)
+	assert.Nil(t, err)
+	assert.Equal(t, "pending", task.State())
+	assert.Equal(t, int32(1), task.Retries())
+
+	ttlCmd := redis.TTL(ctx, fmt.Sprintf("test-%s", taskID))
+	assert.NoError(t, ttlCmd.Err())
+	assert.InDelta(t, 5, ttlCmd.Val().Seconds(), 1)
+}
+
 func TestTimeouted(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
 	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
 	service := NewTaskService(taskRepo, view, 300)
-	taskID, err := service.Create("owner", "test", 3, 1, "", 0)
+	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 	assert.Nil(t, err)
 	service.Select(taskID)
 	service.Timeout(taskID)
