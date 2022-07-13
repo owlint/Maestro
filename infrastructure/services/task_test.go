@@ -44,6 +44,22 @@ func TestCreateTTL(t *testing.T) {
 	assert.InDelta(t, 5, ttlCmd.Val().Seconds(), 1)
 }
 
+func TestCreateFutureTTL(t *testing.T) {
+	ctx := context.Background()
+	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
+	view := view.NewTaskView(redis)
+	taskRepo := repository.NewTaskRepository(redis)
+	service := NewTaskService(taskRepo, view, 300)
+
+	when := time.Now().Unix() + 5
+	taskID, err := service.Create("owner", "test", 3, 5, "", when, 5)
+	assert.Nil(t, err)
+
+	ttlCmd := redis.TTL(ctx, fmt.Sprintf("test-%s", taskID))
+	assert.NoError(t, ttlCmd.Err())
+	assert.InDelta(t, 10, ttlCmd.Val().Seconds(), 1)
+}
+
 func TestSelect(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())

@@ -68,7 +68,15 @@ func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, r
 	}
 
 	if task.StartTimeout() > 0 {
-		err = s.repo.SetTTL(ctx, task.TaskID, int(task.StartTimeout()))
+		startTimeout := int(task.StartTimeout())
+
+		now := time.Now().Unix()
+		startIn := notBefore - now
+		if notBefore > 0 && startIn > 0 {
+			startTimeout += int(startIn)
+		}
+
+		err = s.repo.SetTTL(ctx, task.TaskID, startTimeout)
 		if err != nil {
 			return "", err
 		}
@@ -160,7 +168,7 @@ func (s TaskServiceImpl) Timeout(taskID string) error {
 	}
 
 	if task.State() == "timedout" {
-		return s.repo.SetTTL(ctx, taskID, 300)
+		return s.repo.SetTTL(ctx, taskID, s.resultExpiration)
 	} else if task.StartTimeout() > 0 {
 		return s.repo.SetTTL(ctx, task.TaskID, int(task.StartTimeout()))
 	}

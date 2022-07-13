@@ -115,7 +115,7 @@ func checkTaskConsistency(task CreateTaskRequest) error {
 		return errors.New("not_before must be >= 0")
 	}
 	if task.Payload == "" {
-		return errors.New("payload is a taskuired field")
+		return errors.New("payload is a required field")
 	}
 	return nil
 }
