@@ -11,64 +11,71 @@ import (
 
 // Task is a task to be executed
 type Task struct {
-	TaskID     string
-	owner      string
-	taskQueue  string
-	payload    string
-	state      string
-	timeout    int32
-	retries    int32
-	maxRetries int32
-	createdAt  int64
-	updatedAt  int64
-	notBefore  int64
-	result     string
+	TaskID       string
+	owner        string
+	taskQueue    string
+	payload      string
+	state        string
+	timeout      int32
+	retries      int32
+	maxRetries   int32
+	createdAt    int64
+	updatedAt    int64
+	notBefore    int64
+	startTimeout int32
+	result       string
 }
 
 // NewTask creates a new task
-func NewTask(owner string, taskQueue string, payload string, timeout int32, maxRetries int32) *Task {
-    now := time.Now().Unix()
+func NewTask(owner string, taskQueue string, payload string, timeout int32, startTimeout int32, maxRetries int32) *Task {
+	now := time.Now().Unix()
 	taskID := fmt.Sprintf("Task-%s", uuid.New().String())
 	return &Task{
-		TaskID:     taskID,
-		owner:      owner,
-		payload:    payload,
-		taskQueue:  taskQueue,
-		state:      "pending",
-		timeout:    timeout,
-		retries:    0,
-		maxRetries: maxRetries,
-		createdAt:  now,
-		updatedAt:  now,
-		notBefore:  now,
+		TaskID:       taskID,
+		owner:        owner,
+		payload:      payload,
+		taskQueue:    taskQueue,
+		state:        "pending",
+		timeout:      timeout,
+		retries:      0,
+		maxRetries:   maxRetries,
+		createdAt:    now,
+		updatedAt:    now,
+		startTimeout: startTimeout,
+		notBefore:    now,
 	}
 }
 
 // NewTask creates a new task
-func NewFutureTask(owner string, taskQueue string, payload string, timeout int32, maxRetries int32, notBefore int64) (*Task, error) {
-    now := time.Now().Unix()
-    if notBefore < now {
-        return nil, errors.New("notBefore should be in the future")
-    }
+func NewFutureTask(owner string, taskQueue string, payload string, timeout int32, startTimeout int32, maxRetries int32, notBefore int64) (*Task, error) {
+	now := time.Now().Unix()
+	if notBefore < now {
+		return nil, errors.New("notBefore should be in the future")
+	}
 
 	taskID := fmt.Sprintf("Task-%s", uuid.New().String())
 	return &Task{
-		TaskID:     taskID,
-		owner:      owner,
-		payload:    payload,
-		taskQueue:  taskQueue,
-		state:      "pending",
-		timeout:    timeout,
-		retries:    0,
-		maxRetries: maxRetries,
-		createdAt:  time.Now().Unix(),
-		updatedAt:  time.Now().Unix(),
-		notBefore:  notBefore,
+		TaskID:       taskID,
+		owner:        owner,
+		payload:      payload,
+		taskQueue:    taskQueue,
+		state:        "pending",
+		timeout:      timeout,
+		retries:      0,
+		maxRetries:   maxRetries,
+		createdAt:    now,
+		updatedAt:    now,
+		startTimeout: startTimeout,
+		notBefore:    notBefore,
 	}, nil
 }
 
 func TaskFromStringMap(data map[string]string) (*Task, error) {
 	timeout, err := strconv.ParseInt(data["timeout"], 10, 0)
+	if err != nil {
+		return nil, err
+	}
+	startTimeout, err := strconv.ParseInt(data["startTimeout"], 10, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -94,17 +101,18 @@ func TaskFromStringMap(data map[string]string) (*Task, error) {
 	}
 
 	task := &Task{
-		TaskID:     data["task_id"],
-		owner:      data["owner"],
-		payload:    data["payload"],
-		taskQueue:  data["task_queue"],
-		state:      data["state"],
-		timeout:    int32(timeout),
-		retries:    int32(retries),
-		maxRetries: int32(maxRetries),
-		createdAt:  createdAt,
-		updatedAt:  updatedAt,
-		notBefore:  notBefore,
+		TaskID:       data["task_id"],
+		owner:        data["owner"],
+		payload:      data["payload"],
+		taskQueue:    data["task_queue"],
+		state:        data["state"],
+		timeout:      int32(timeout),
+		startTimeout: int32(startTimeout),
+		retries:      int32(retries),
+		maxRetries:   int32(maxRetries),
+		createdAt:    createdAt,
+		updatedAt:    updatedAt,
+		notBefore:    notBefore,
 	}
 
 	if result, present := data["result"]; present {
@@ -132,7 +140,11 @@ func (t *Task) UpdatedAt() int64 {
 }
 
 func (t *Task) NotBefore() int64 {
-    return t.notBefore
+	return t.notBefore
+}
+
+func (t *Task) StartTimeout() int32 {
+	return t.startTimeout
 }
 
 // Owner returns the owner of this task

@@ -18,7 +18,7 @@ import (
 
 // TaskService is a service to manage tasks
 type TaskService interface {
-	Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error)
+	Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error)
 	Select(taskID string) error
 	Fail(taskID string) error
 	Cancel(taskID string) error
@@ -45,7 +45,7 @@ func NewTaskService(repository repository.TaskRepository, view view.TaskView, re
 }
 
 // Create creates a new task from given arguments
-func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error) {
+func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
 	ctx := context.Background()
 	if notBefore < 0 {
 		return "", errors.New("NotBefore must be >= 0")
@@ -54,9 +54,9 @@ func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, r
 	var task *domain.Task
 	var err error
 	if notBefore == 0 {
-		task = domain.NewTask(owner, taskQueue, payload, timeout, retry)
+		task = domain.NewTask(owner, taskQueue, payload, timeout, startTimeout, retry)
 	} else {
-		task, err = domain.NewFutureTask(owner, taskQueue, payload, timeout, retry, notBefore)
+		task, err = domain.NewFutureTask(owner, taskQueue, payload, timeout, retry, startTimeout, notBefore)
 		if err != nil {
 			return "", err
 		}
@@ -65,6 +65,21 @@ func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, r
 	err = s.repo.Save(ctx, *task)
 	if err != nil {
 		return "", err
+	}
+
+	if task.StartTimeout() > 0 {
+		startTimeout := int(task.StartTimeout())
+
+		now := time.Now().Unix()
+		startIn := notBefore - now
+		if notBefore > 0 && startIn > 0 {
+			startTimeout += int(startIn)
+		}
+
+		err = s.repo.SetTTL(ctx, task.TaskID, startTimeout)
+		if err != nil {
+			return "", err
+		}
 	}
 	return task.ObjectID(), nil
 }
@@ -86,7 +101,12 @@ func (s TaskServiceImpl) Select(taskID string) error {
 		return err
 	}
 
-	return s.repo.Save(ctx, *task)
+	err = s.repo.Save(ctx, *task)
+	if err != nil {
+		return err
+	}
+
+	return s.repo.RemoveTTL(ctx, taskID)
 }
 
 // Delete deletes a task
@@ -117,10 +137,12 @@ func (s TaskServiceImpl) Fail(taskID string) error {
 	}
 
 	if task.State() == "failed" {
-		return s.repo.SetTTL(ctx, taskID, 300)
-	} else {
-		return nil
+		return s.repo.SetTTL(ctx, taskID, s.resultExpiration)
+	} else if task.StartTimeout() > 0 {
+		return s.repo.SetTTL(ctx, taskID, int(task.StartTimeout()))
 	}
+
+	return nil
 }
 
 // Timeout marks a task as timedout
@@ -146,10 +168,12 @@ func (s TaskServiceImpl) Timeout(taskID string) error {
 	}
 
 	if task.State() == "timedout" {
-		return s.repo.SetTTL(ctx, taskID, 300)
-	} else {
-		return nil
+		return s.repo.SetTTL(ctx, taskID, s.resultExpiration)
+	} else if task.StartTimeout() > 0 {
+		return s.repo.SetTTL(ctx, task.TaskID, int(task.StartTimeout()))
 	}
+
+	return nil
 }
 
 // Complete marks a task as completed
@@ -199,7 +223,7 @@ func (s TaskServiceImpl) Cancel(taskID string) error {
 		return err
 	}
 
-	return s.repo.SetTTL(ctx, taskID, 300)
+	return s.repo.SetTTL(ctx, taskID, s.resultExpiration)
 }
 
 // ConsumeQueueResult consumes a "finished" item from the given queue
@@ -245,8 +269,8 @@ func NewTaskServiceLogger(logger log.Logger, next TaskService) TaskServiceLogger
 	}
 }
 
-func (l TaskServiceLogger) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error) {
-	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore)
+func (l TaskServiceLogger) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
+	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
 	defer func() {
 		l.logger.Log(
 			"action", "create",
@@ -351,8 +375,8 @@ func NewTaskServiceLocker(locker *redislock.Client, next TaskService) TaskServic
 	}
 }
 
-func (l TaskServiceLocker) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error) {
-	return l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore)
+func (l TaskServiceLocker) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
+	return l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
 }
 func (l TaskServiceLocker) Select(taskID string) error {
 	return l.next.Select(taskID)
@@ -432,8 +456,8 @@ func NewTaskServiceInstrumenter(counter *kitprometheus.Counter, next TaskService
 	}
 }
 
-func (l TaskServiceInstrumenter) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64) (string, error) {
-	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore)
+func (l TaskServiceInstrumenter) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
+	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
 	defer func() {
 		lvs := []string{"state", "pending", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)

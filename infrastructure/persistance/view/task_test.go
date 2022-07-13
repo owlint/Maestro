@@ -18,7 +18,7 @@ func TestByID(t *testing.T) {
 	view := TaskViewImpl{redis: redis}
 	owner := uuid.New().String()
 	queue := uuid.New().String()
-	task := domain.NewTask(owner, queue, "payload", 10, 2)
+	task := domain.NewTask(owner, queue, "payload", 10, 0, 2)
 
 	err := repo.Save(context.Background(), *task)
 	assert.Nil(t, err)
@@ -39,8 +39,8 @@ func TestInQueue(t *testing.T) {
 	view := TaskViewImpl{redis: redis}
 	owner := uuid.New().String()
 	queue := uuid.New().String()
-	task1 := domain.NewTask(owner, queue, "payload", 10, 2)
-	task2 := domain.NewTask(owner, queue, "payload", 10, 2)
+	task1 := domain.NewTask(owner, queue, "payload", 10, 0, 2)
+	task2 := domain.NewTask(owner, queue, "payload", 10, 0, 2)
 
 	err := repo.Save(context.Background(), *task1)
 	assert.Nil(t, err)
@@ -60,10 +60,10 @@ func TestQueueStats(t *testing.T) {
 	view := TaskViewImpl{redis: redis}
 	owner := uuid.New().String()
 	queue := uuid.New().String()
-	task1 := domain.NewTask(owner, queue, "payload", 10, 2)
-	task2 := domain.NewTask(owner, queue, "payload", 10, 2)
+	task1 := domain.NewTask(owner, queue, "payload", 10, 0, 2)
+	task2 := domain.NewTask(owner, queue, "payload", 10, 0, 2)
 	task2.Select()
-	task3, err := domain.NewFutureTask(owner, queue, "payload", 10, 2, time.Now().Unix()+1000)
+	task3, err := domain.NewFutureTask(owner, queue, "payload", 10, 2, 0, time.Now().Unix()+1000)
 	assert.Nil(t, err)
 
 	err = repo.Save(context.Background(), *task1)
