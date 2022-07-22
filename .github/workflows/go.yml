@@ -22,9 +22,6 @@ jobs:
       - name: Start services
         run: make docker.recreate
 
-      - name: Build
-        run: make build
-
       - name: Test
         run: go test -v ./...
 
@@ -47,9 +44,6 @@ jobs:
 
       - name: Start services
         run: make docker.recreate
-
-      - name: Build
-        run: make build
 
       - name: Test
         run: go test -v ./...
