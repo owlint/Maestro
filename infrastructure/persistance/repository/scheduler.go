@@ -9,6 +9,8 @@ import (
 	"github.com/owlint/maestro/domain"
 )
 
+const SCHEDULER_TTL = 7200
+
 type SchedulerRepository struct {
 	redis *redis.Client
 }
@@ -22,12 +24,12 @@ func NewSchedulerRepository(redis *redis.Client) SchedulerRepository {
 func (r *SchedulerRepository) Schedule(ctx context.Context, t *domain.Task) error {
 	err := r.createOwnerInQueue(ctx, t)
 	if err != nil {
-		return err
+		return fmt.Errorf("Could not reschedule owner : %w", err)
 	}
 
 	err = r.addTaskToOwnerQueue(ctx, t)
 	if err != nil {
-		return err
+		return fmt.Errorf("Could not add task to owner queue : %w", err)
 	}
 
 	return r.UpdateQueueTTLFor(ctx, t)
@@ -36,7 +38,7 @@ func (r *SchedulerRepository) Schedule(ctx context.Context, t *domain.Task) erro
 func (r *SchedulerRepository) NextInQueue(ctx context.Context, queueName string) (*string, error) {
 	owner, err := r.selectNextOwner(ctx, queueName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Could not find next owner : %w", err)
 	}
 
 	if owner == nil {
@@ -45,7 +47,7 @@ func (r *SchedulerRepository) NextInQueue(ctx context.Context, queueName string)
 
 	taskID, err := r.selectNextOwnerTask(ctx, queueName, *owner)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Could not get owner next task %w", err)
 	}
 	if taskID == nil {
 		return nil, nil
@@ -56,7 +58,7 @@ func (r *SchedulerRepository) NextInQueue(ctx context.Context, queueName string)
 }
 
 func (r *SchedulerRepository) updateOwnerInQueue(ctx context.Context, queueName, owner string) error {
-	key := fmt.Sprintf("%s-scheduler", queueName)
+	key := queueSchedulerKey(queueName)
 	addCmd := r.redis.ZAdd(ctx, key, &redis.Z{
 		Member: owner,
 		Score:  float64(time.Now().Unix()),
@@ -65,7 +67,7 @@ func (r *SchedulerRepository) updateOwnerInQueue(ctx context.Context, queueName,
 }
 
 func (r *SchedulerRepository) selectNextOwnerTask(ctx context.Context, queueName, owner string) (*string, error) {
-	queueKeyName := fmt.Sprintf("%s-%s", queueName, owner)
+	queueKeyName := ownerQueueKey(queueName, owner)
 	taskIDCmd := r.redis.RPop(ctx, queueKeyName)
 	if taskIDCmd.Err() == redis.Nil {
 		return nil, nil
@@ -78,7 +80,7 @@ func (r *SchedulerRepository) selectNextOwnerTask(ctx context.Context, queueName
 }
 
 func (r *SchedulerRepository) selectNextOwner(ctx context.Context, queueName string) (*string, error) {
-	key := fmt.Sprintf("%s-scheduler", queueName)
+	key := queueSchedulerKey(queueName)
 	ownerCmd := r.redis.ZPopMin(ctx, key, 1)
 	if ownerCmd.Err() != nil {
 		return nil, ownerCmd.Err()
@@ -94,20 +96,21 @@ func (r *SchedulerRepository) selectNextOwner(ctx context.Context, queueName str
 }
 
 func (r *SchedulerRepository) UpdateQueueTTLFor(ctx context.Context, t *domain.Task) error {
-	key := fmt.Sprintf("%s-scheduler", t.Queue())
+	key := queueSchedulerKey(t.Queue())
 	ttlCmd := r.redis.TTL(ctx, key)
 	if ttlCmd.Err() != nil {
 		return ttlCmd.Err()
 	}
 	remainingTTL := ttlCmd.Val().Seconds()
 
-	taskTimestamp := time.Unix(t.NotBefore(), 0).Unix()
+	taskTimestamp := t.NotBefore()
 	now := time.Now().Unix()
 	taskTTL := taskTimestamp - now
+	taskTTL += int64(t.StartTimeout())
 	if taskTTL < 0 {
 		taskTTL = 0
 	}
-	queueTTL := taskTTL + 7200
+	queueTTL := taskTTL + SCHEDULER_TTL
 
 	if queueTTL > int64(remainingTTL) {
 		r.redis.Expire(ctx, key, time.Duration(queueTTL)*time.Second)
@@ -117,7 +120,7 @@ func (r *SchedulerRepository) UpdateQueueTTLFor(ctx context.Context, t *domain.T
 }
 
 func (r *SchedulerRepository) createOwnerInQueue(ctx context.Context, t *domain.Task) error {
-	key := fmt.Sprintf("%s-scheduler", t.Queue())
+	key := queueSchedulerKey(t.Queue())
 	cmd := r.redis.ZAddNX(ctx, key, &redis.Z{
 		Member: t.Owner(),
 		Score:  0,
@@ -126,8 +129,16 @@ func (r *SchedulerRepository) createOwnerInQueue(ctx context.Context, t *domain.
 }
 
 func (r *SchedulerRepository) addTaskToOwnerQueue(ctx context.Context, t *domain.Task) error {
-	key := fmt.Sprintf("%s-%s", t.Queue(), t.Owner())
+	key := ownerQueueKey(t.Queue(), t.Owner())
 	value := t.TaskID
 	cmd := r.redis.LPush(ctx, key, value)
 	return cmd.Err()
+}
+
+func queueSchedulerKey(queueName string) string {
+	return fmt.Sprintf("scheduler-%s", queueName)
+}
+
+func ownerQueueKey(queueName, owner string) string {
+	return fmt.Sprintf("scheduler-%s-%s", queueName, owner)
 }

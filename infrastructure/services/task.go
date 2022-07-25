@@ -157,6 +157,10 @@ func (s TaskServiceImpl) Fail(taskID string) error {
 	if task.State() == "failed" {
 		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 	} else if task.StartTimeout() > 0 {
+		err = s.schedulerRepo.Schedule(ctx, task)
+		if err != nil {
+			return err
+		}
 		return s.taskRepo.SetTTL(ctx, taskID, int(task.StartTimeout()))
 	}
 
@@ -193,6 +197,10 @@ func (s TaskServiceImpl) Timeout(taskID string) error {
 	if task.State() == "timedout" {
 		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 	} else if task.StartTimeout() > 0 {
+		err = s.schedulerRepo.Schedule(ctx, task)
+		if err != nil {
+			return err
+		}
 		return s.taskRepo.SetTTL(ctx, task.TaskID, int(task.StartTimeout()))
 	}
 
@@ -417,7 +425,7 @@ func (l TaskServiceLocker) Select(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.Select(taskID)
 }
 func (l TaskServiceLocker) Delete(taskID string) error {
@@ -426,7 +434,7 @@ func (l TaskServiceLocker) Delete(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.Delete(taskID)
 }
 func (l TaskServiceLocker) Fail(taskID string) error {
@@ -435,7 +443,7 @@ func (l TaskServiceLocker) Fail(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.Fail(taskID)
 }
 func (l TaskServiceLocker) ConsumeQueueResult(queue string) (*domain.Task, error) {
@@ -444,7 +452,7 @@ func (l TaskServiceLocker) ConsumeQueueResult(queue string) (*domain.Task, error
 	if err != nil {
 		return nil, err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.ConsumeQueueResult(queue)
 }
 func (l TaskServiceLocker) Cancel(taskID string) error {
@@ -453,7 +461,7 @@ func (l TaskServiceLocker) Cancel(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.Cancel(taskID)
 }
 func (l TaskServiceLocker) Timeout(taskID string) error {
@@ -462,7 +470,7 @@ func (l TaskServiceLocker) Timeout(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.Timeout(taskID)
 }
 func (l TaskServiceLocker) Complete(taskID string, result string) error {
@@ -471,7 +479,7 @@ func (l TaskServiceLocker) Complete(taskID string, result string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 
 	return l.next.Complete(taskID, result)
 }

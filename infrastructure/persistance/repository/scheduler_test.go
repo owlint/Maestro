@@ -13,7 +13,7 @@ import (
 )
 
 func OwnerScheduledWithTimestamp(t *testing.T, ctx context.Context, client *redis.Client, queue, owner string, timestamp int) bool {
-	key := fmt.Sprintf("%s-scheduler", queue)
+	key := fmt.Sprintf("scheduler-%s", queue)
 	scoreCmd := client.ZScore(ctx, key, owner)
 	if scoreCmd.Err() == redis.Nil {
 		return false
@@ -24,7 +24,7 @@ func OwnerScheduledWithTimestamp(t *testing.T, ctx context.Context, client *redi
 }
 
 func OwnerQueueLen(t *testing.T, ctx context.Context, client *redis.Client, queue, owner string) int64 {
-	key := fmt.Sprintf("%s-%s", queue, owner)
+	key := fmt.Sprintf("scheduler-%s-%s", queue, owner)
 	lenCmd := client.LLen(ctx, key)
 	assert.NoError(t, lenCmd.Err())
 
@@ -32,7 +32,7 @@ func OwnerQueueLen(t *testing.T, ctx context.Context, client *redis.Client, queu
 }
 
 func QueueSchedulerTTL(t *testing.T, ctx context.Context, client *redis.Client, queue string) float64 {
-	key := fmt.Sprintf("%s-scheduler", queue)
+	key := fmt.Sprintf("scheduler-%s", queue)
 	lenCmd := client.TTL(ctx, key)
 	assert.NoError(t, lenCmd.Err())
 
@@ -60,6 +60,46 @@ func TestSchedule(t *testing.T) {
 	assert.InDelta(t, float64(7200), QueueSchedulerTTL(t, ctx, redis, "queue"), 1)
 }
 
+func TestSchduleNotBefore(t *testing.T) {
+	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
+	repo := NewSchedulerRepository(redis)
+	ctx := context.Background()
+
+	task, err := domain.NewFutureTask(
+		"owner",
+		"queue4",
+		"payload",
+		900,
+		0,
+		3,
+		time.Now().Unix()+1000,
+	)
+	assert.NoError(t, err)
+
+	err = repo.Schedule(ctx, task)
+	assert.NoError(t, err)
+	assert.InDelta(t, 8200, QueueSchedulerTTL(t, ctx, redis, "queue4"), 1)
+}
+
+func TestSchduleStartTimeout(t *testing.T) {
+	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
+	repo := NewSchedulerRepository(redis)
+	ctx := context.Background()
+
+	task := domain.NewTask(
+		"owner",
+		"queue5",
+		"payload",
+		900,
+		1000,
+		3,
+	)
+
+	err := repo.Schedule(ctx, task)
+	assert.NoError(t, err)
+	assert.InDelta(t, 8200, QueueSchedulerTTL(t, ctx, redis, "queue5"), 1)
+}
+
 func TestNextInQueue(t *testing.T) {
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
 	repo := NewSchedulerRepository(redis)
@@ -82,6 +122,41 @@ func TestNextInQueue(t *testing.T) {
 	assert.Equal(t, task.ObjectID(), *taskID)
 	assert.False(t, OwnerScheduledWithTimestamp(t, ctx, redis, "queue2", "owner", 0))
 	assert.Equal(t, int64(0), OwnerQueueLen(t, ctx, redis, "queue2", "owner"))
+}
+
+func TestNextInQueueEmptyOwner(t *testing.T) {
+	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
+	repo := NewSchedulerRepository(redis)
+	ctx := context.Background()
+
+	task := domain.NewTask(
+		"owner",
+		"queue2",
+		"payload",
+		900,
+		0,
+		3,
+	)
+	err := repo.Schedule(ctx, task)
+	assert.NoError(t, err)
+
+	taskID, err := repo.NextInQueue(ctx, "queue2")
+	assert.NoError(t, err)
+	assert.NotNil(t, taskID)
+
+	taskID, err = repo.NextInQueue(ctx, "queue2")
+	assert.NoError(t, err)
+	assert.Nil(t, taskID)
+}
+
+func TestNextInQueueNoOwner(t *testing.T) {
+	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
+	repo := NewSchedulerRepository(redis)
+	ctx := context.Background()
+
+	taskID, err := repo.NextInQueue(ctx, "queue3")
+	assert.NoError(t, err)
+	assert.Nil(t, taskID)
 }
 
 func TestUpdateSchedulerTTL(t *testing.T) {
