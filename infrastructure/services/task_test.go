@@ -18,9 +18,10 @@ import (
 func TestCreate(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 
 	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 	assert.Nil(t, err)
@@ -32,9 +33,10 @@ func TestCreate(t *testing.T) {
 func TestCreateTTL(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 
 	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 5)
 	assert.Nil(t, err)
@@ -47,9 +49,10 @@ func TestCreateTTL(t *testing.T) {
 func TestCreateFutureTTL(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 
 	when := time.Now().Unix() + 5
 	taskID, err := service.Create("owner", "test", 3, 5, "", when, 5)
@@ -63,9 +66,10 @@ func TestCreateFutureTTL(t *testing.T) {
 func TestSelect(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 
 	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 	assert.Nil(t, err)
@@ -80,9 +84,10 @@ func TestSelect(t *testing.T) {
 func TestSelectTTL(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 
 	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 5)
 	assert.Nil(t, err)
@@ -101,9 +106,10 @@ func TestSelectTTL(t *testing.T) {
 
 func TestSelectUnknown(t *testing.T) {
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 
 	err := service.Select(uuid.New().String())
 	assert.NotNil(t, err)
@@ -111,9 +117,10 @@ func TestSelectUnknown(t *testing.T) {
 func TestComplete(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
@@ -131,9 +138,10 @@ func TestComplete(t *testing.T) {
 func TestCompleteExpiration(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 800)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 800)
 	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
@@ -151,9 +159,10 @@ func TestCompleteExpiration(t *testing.T) {
 
 func TestCompleteUnknown(t *testing.T) {
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 
 	err := service.Complete(uuid.New().String(), "")
 	assert.NotNil(t, err)
@@ -161,9 +170,10 @@ func TestCompleteUnknown(t *testing.T) {
 func TestCancel(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 
 	taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 	assert.Nil(t, err)
@@ -182,9 +192,10 @@ func TestCancel(t *testing.T) {
 
 func TestCancelUnknown(t *testing.T) {
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 
 	err := service.Cancel(uuid.New().String())
 	assert.NotNil(t, err)
@@ -192,9 +203,10 @@ func TestCancelUnknown(t *testing.T) {
 func TestFail(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
@@ -211,9 +223,10 @@ func TestFail(t *testing.T) {
 func TestFailTTL(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
@@ -234,9 +247,10 @@ func TestFailTTL(t *testing.T) {
 func TestFailed(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 	assert.Nil(t, err)
 	service.Select(taskID)
@@ -256,9 +270,10 @@ func TestFailed(t *testing.T) {
 }
 func TestFailedUnknown(t *testing.T) {
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 
 	err := service.Fail(uuid.New().String())
 	assert.NotNil(t, err)
@@ -266,9 +281,10 @@ func TestFailedUnknown(t *testing.T) {
 func TestTimeout(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
@@ -285,9 +301,10 @@ func TestTimeout(t *testing.T) {
 func TestTimeoutTTL(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5)
 	assert.Nil(t, err)
 	err = service.Select(taskID)
@@ -308,9 +325,10 @@ func TestTimeoutTTL(t *testing.T) {
 func TestTimeouted(t *testing.T) {
 	ctx := context.Background()
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 	taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 	assert.Nil(t, err)
 	service.Select(taskID)
@@ -331,9 +349,10 @@ func TestTimeouted(t *testing.T) {
 }
 func TestTimeoutedUnknown(t *testing.T) {
 	redis := drivers.ConnectRedis(drivers.NewRedisOptions())
-	view := view.NewTaskView(redis)
 	taskRepo := repository.NewTaskRepository(redis)
-	service := NewTaskService(taskRepo, view, 300)
+	schedulerRepo := repository.NewSchedulerRepository(redis)
+	view := view.NewTaskView(redis, schedulerRepo)
+	service := NewTaskService(taskRepo, schedulerRepo, view, 300)
 
 	err := service.Timeout(uuid.New().String())
 	assert.NotNil(t, err)

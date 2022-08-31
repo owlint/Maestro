@@ -11,6 +11,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/owlint/maestro/domain"
 	taskerror "github.com/owlint/maestro/errors"
+	"github.com/owlint/maestro/infrastructure/persistance/repository"
 )
 
 type TaskView interface {
@@ -23,12 +24,14 @@ type TaskView interface {
 }
 
 type TaskViewImpl struct {
-	redis *redis.Client
+	redis         *redis.Client
+	schedulerRepo repository.SchedulerRepository
 }
 
-func NewTaskView(redis *redis.Client) TaskViewImpl {
+func NewTaskView(redis *redis.Client, schedulerRepo repository.SchedulerRepository) TaskViewImpl {
 	return TaskViewImpl{
-		redis: redis,
+		redis:         redis,
+		schedulerRepo: schedulerRepo,
 	}
 }
 
@@ -75,45 +78,20 @@ func (v TaskViewImpl) ByID(ctx context.Context, taskID string) (*domain.Task, er
 }
 
 func (v TaskViewImpl) NextInQueue(ctx context.Context, queue string) (*domain.Task, error) {
-	tasks, err := v.InQueue(ctx, queue)
+	taskID, err := v.schedulerRepo.NextInQueue(ctx, queue)
+	if err != nil {
+		return nil, err
+	}
+	if taskID == nil {
+		return nil, nil
+	}
+
+	task, err := v.ByID(ctx, *taskID)
 	if err != nil {
 		return nil, err
 	}
 
-	now := time.Now().Unix()
-	oldestByOwner := make(map[string]*domain.Task)
-	ownerLastRunAt := make(map[string]int64)
-	for _, task := range tasks {
-		if t, exists := oldestByOwner[task.Owner()]; task.State() == "pending" &&
-			task.NotBefore() <= now &&
-			(!exists || task.UpdatedAt() < t.UpdatedAt()) {
-			oldestByOwner[task.Owner()] = task
-		}
-
-		if _, exists := ownerLastRunAt[task.Owner()]; !exists {
-			ownerLastRunAt[task.Owner()] = 0
-		}
-
-		if lastModificationAt := ownerLastRunAt[task.Owner()]; task.State() != "pending" &&
-			task.UpdatedAt() > lastModificationAt {
-			ownerLastRunAt[task.Owner()] = task.UpdatedAt()
-		}
-	}
-
-	if len(oldestByOwner) == 0 {
-		return nil, nil
-	}
-
-	oldestModificationAt := time.Now().Unix() + 1
-	selectedOwner := ""
-	for owner, lastModificationAt := range ownerLastRunAt {
-		if _, havePendingTask := oldestByOwner[owner]; havePendingTask && lastModificationAt < oldestModificationAt {
-			selectedOwner = owner
-			oldestModificationAt = lastModificationAt
-		}
-	}
-
-	return oldestByOwner[selectedOwner], nil
+	return task, nil
 }
 
 func (v TaskViewImpl) InQueue(ctx context.Context, queue string) ([]*domain.Task, error) {
@@ -262,15 +240,7 @@ func (v TaskViewLocker) ByID(ctx context.Context, taskID string) (*domain.Task, 
 }
 
 func (v TaskViewLocker) NextInQueue(ctx context.Context, queue string) (*domain.Task, error) {
-	lock, err := v.acquire(ctx, queue)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { lock.Release(ctx) }()
-
-	result, err := v.next.NextInQueue(ctx, queue)
-
-	return result, err
+	return v.next.NextInQueue(ctx, queue)
 }
 
 func (v TaskViewLocker) InQueue(ctx context.Context, queue string) ([]*domain.Task, error) {

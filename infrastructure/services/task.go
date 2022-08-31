@@ -12,6 +12,7 @@ import (
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/google/uuid"
 	"github.com/owlint/maestro/domain"
+
 	"github.com/owlint/maestro/infrastructure/persistance/repository"
 	"github.com/owlint/maestro/infrastructure/persistance/view"
 )
@@ -30,15 +31,17 @@ type TaskService interface {
 
 // TaskServiceImpl is an implementation of TaskService
 type TaskServiceImpl struct {
-	repo             repository.TaskRepository
+	taskRepo         repository.TaskRepository
+	schedulerRepo    repository.SchedulerRepository
 	view             view.TaskView
 	resultExpiration int
 }
 
 // NewTaskService creates a new TaskService
-func NewTaskService(repository repository.TaskRepository, view view.TaskView, resultExpiration int) TaskServiceImpl {
+func NewTaskService(taskRepo repository.TaskRepository, schedulerRepo repository.SchedulerRepository, view view.TaskView, resultExpiration int) TaskServiceImpl {
 	return TaskServiceImpl{
-		repo:             repository,
+		taskRepo:         taskRepo,
+		schedulerRepo:    schedulerRepo,
 		view:             view,
 		resultExpiration: resultExpiration,
 	}
@@ -62,7 +65,7 @@ func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, r
 		}
 	}
 
-	err = s.repo.Save(ctx, *task)
+	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return "", err
 	}
@@ -76,10 +79,15 @@ func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, r
 			startTimeout += int(startIn)
 		}
 
-		err = s.repo.SetTTL(ctx, task.TaskID, startTimeout)
+		err = s.taskRepo.SetTTL(ctx, task.TaskID, startTimeout)
 		if err != nil {
 			return "", err
 		}
+	}
+
+	err = s.schedulerRepo.Schedule(ctx, task)
+	if err != nil {
+		return task.ObjectID(), nil
 	}
 	return task.ObjectID(), nil
 }
@@ -96,22 +104,27 @@ func (s TaskServiceImpl) Select(taskID string) error {
 		return err
 	}
 
+	err = s.schedulerRepo.UpdateQueueTTLFor(ctx, task)
+	if err != nil {
+		return err
+	}
+
 	err = task.Select()
 	if err != nil {
 		return err
 	}
 
-	err = s.repo.Save(ctx, *task)
+	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
 	}
 
-	return s.repo.RemoveTTL(ctx, taskID)
+	return s.taskRepo.RemoveTTL(ctx, taskID)
 }
 
 // Delete deletes a task
 func (s TaskServiceImpl) Delete(taskID string) error {
-	return s.repo.Delete(context.Background(), taskID)
+	return s.taskRepo.Delete(context.Background(), taskID)
 }
 
 // Fail marks a task as failed
@@ -126,20 +139,29 @@ func (s TaskServiceImpl) Fail(taskID string) error {
 		return err
 	}
 
+	err = s.schedulerRepo.UpdateQueueTTLFor(ctx, task)
+	if err != nil {
+		return err
+	}
+
 	err = task.Fail()
 	if err != nil {
 		return err
 	}
 
-	err = s.repo.Save(ctx, *task)
+	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
 	}
 
 	if task.State() == "failed" {
-		return s.repo.SetTTL(ctx, taskID, s.resultExpiration)
+		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 	} else if task.StartTimeout() > 0 {
-		return s.repo.SetTTL(ctx, taskID, int(task.StartTimeout()))
+		err = s.schedulerRepo.Schedule(ctx, task)
+		if err != nil {
+			return err
+		}
+		return s.taskRepo.SetTTL(ctx, taskID, int(task.StartTimeout()))
 	}
 
 	return nil
@@ -157,20 +179,29 @@ func (s TaskServiceImpl) Timeout(taskID string) error {
 		return err
 	}
 
+	err = s.schedulerRepo.UpdateQueueTTLFor(ctx, task)
+	if err != nil {
+		return err
+	}
+
 	err = task.Timeout()
 	if err != nil {
 		return err
 	}
 
-	err = s.repo.Save(ctx, *task)
+	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
 	}
 
 	if task.State() == "timedout" {
-		return s.repo.SetTTL(ctx, taskID, s.resultExpiration)
+		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 	} else if task.StartTimeout() > 0 {
-		return s.repo.SetTTL(ctx, task.TaskID, int(task.StartTimeout()))
+		err = s.schedulerRepo.Schedule(ctx, task)
+		if err != nil {
+			return err
+		}
+		return s.taskRepo.SetTTL(ctx, task.TaskID, int(task.StartTimeout()))
 	}
 
 	return nil
@@ -188,17 +219,22 @@ func (s TaskServiceImpl) Complete(taskID string, result string) error {
 		return err
 	}
 
+	err = s.schedulerRepo.UpdateQueueTTLFor(ctx, task)
+	if err != nil {
+		return err
+	}
+
 	err = task.Complete(result)
 	if err != nil {
 		return err
 	}
 
-	err = s.repo.Save(ctx, *task)
+	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
 	}
 
-	return s.repo.SetTTL(ctx, taskID, s.resultExpiration)
+	return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 }
 
 // Cancel marks a task as canceled
@@ -213,17 +249,22 @@ func (s TaskServiceImpl) Cancel(taskID string) error {
 		return err
 	}
 
+	err = s.schedulerRepo.UpdateQueueTTLFor(ctx, task)
+	if err != nil {
+		return err
+	}
+
 	err = task.Cancel()
 	if err != nil {
 		return err
 	}
 
-	err = s.repo.Save(ctx, *task)
+	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
 	}
 
-	return s.repo.SetTTL(ctx, taskID, s.resultExpiration)
+	return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 }
 
 // ConsumeQueueResult consumes a "finished" item from the given queue
@@ -379,9 +420,21 @@ func (l TaskServiceLocker) Create(owner string, taskQueue string, timeout int32,
 	return l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
 }
 func (l TaskServiceLocker) Select(taskID string) error {
+	ctx := context.Background()
+	lock, err := l.acquire(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	defer lock.Release(ctx)
 	return l.next.Select(taskID)
 }
 func (l TaskServiceLocker) Delete(taskID string) error {
+	ctx := context.Background()
+	lock, err := l.acquire(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	defer lock.Release(ctx)
 	return l.next.Delete(taskID)
 }
 func (l TaskServiceLocker) Fail(taskID string) error {
@@ -390,7 +443,7 @@ func (l TaskServiceLocker) Fail(taskID string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.Fail(taskID)
 }
 func (l TaskServiceLocker) ConsumeQueueResult(queue string) (*domain.Task, error) {
@@ -399,13 +452,25 @@ func (l TaskServiceLocker) ConsumeQueueResult(queue string) (*domain.Task, error
 	if err != nil {
 		return nil, err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 	return l.next.ConsumeQueueResult(queue)
 }
 func (l TaskServiceLocker) Cancel(taskID string) error {
+	ctx := context.Background()
+	lock, err := l.acquire(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	defer lock.Release(ctx)
 	return l.next.Cancel(taskID)
 }
 func (l TaskServiceLocker) Timeout(taskID string) error {
+	ctx := context.Background()
+	lock, err := l.acquire(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	defer lock.Release(ctx)
 	return l.next.Timeout(taskID)
 }
 func (l TaskServiceLocker) Complete(taskID string, result string) error {
@@ -414,7 +479,7 @@ func (l TaskServiceLocker) Complete(taskID string, result string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer lock.Release(ctx)
 
 	return l.next.Complete(taskID, result)
 }
