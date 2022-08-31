@@ -37,14 +37,15 @@ func main() {
 		Help:      "Number of task in state.",
 	}, fieldKeys)
 
-	view := view.NewTaskViewLocker(locker, view.NewTaskView(redisClient))
-	repo := repository.NewTaskRepository(redisClient)
+	taskRepo := repository.NewTaskRepository(redisClient)
+	schedulerRepo := repository.NewSchedulerRepository(redisClient)
+	view := view.NewTaskViewLocker(locker, view.NewTaskView(redisClient, schedulerRepo))
 	taskService := services.NewTaskServiceInstrumenter(stateCount,
 		services.NewTaskServiceLocker(
 			locker,
 			services.NewTaskServiceLogger(
 				log.With(logger, "layer", "service"),
-				services.NewTaskService(repo, view, expirationTime),
+				services.NewTaskService(taskRepo, schedulerRepo, view, expirationTime),
 			),
 		),
 	)
@@ -137,7 +138,7 @@ func main() {
 	)
 	queueNextTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "next"))(
-			endpoint.QueueNextEndpoint(taskService, view, locker),
+			endpoint.QueueNextEndpoint(taskService, view),
 		),
 		rest.DecodeQueueNextRequest,
 		rest.EncodeJSONResponse,
