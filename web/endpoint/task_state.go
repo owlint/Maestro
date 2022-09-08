@@ -25,7 +25,7 @@ func CompleteTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalCompleteTaskRequest(request)
 		if err != nil {
-			return CompleteTaskResponse{err.Error()}, taskerrors.ValidationError{err}
+			return CompleteTaskResponse{err.Error()}, taskerrors.ValidationError{Origin: err}
 		}
 		err = svc.Complete(req.TaskID, req.Result)
 		if err != nil {
@@ -61,7 +61,7 @@ func CancelTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalCancelTaskRequest(request)
 		if err != nil {
-			return CancelTaskResponse{err.Error()}, taskerrors.ValidationError{err}
+			return CancelTaskResponse{err.Error()}, taskerrors.ValidationError{Origin: err}
 		}
 		err = svc.Cancel(req.TaskID)
 		if err != nil {
@@ -94,7 +94,7 @@ func FailTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalFailTaskRequest(request)
 		if err != nil {
-			return FailTaskResponse{err.Error()}, taskerrors.ValidationError{err}
+			return FailTaskResponse{err.Error()}, taskerrors.ValidationError{Origin: err}
 		}
 		err = svc.Fail(req.TaskID)
 		if err != nil {
@@ -127,7 +127,7 @@ func TimeoutTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalTimeoutTaskRequest(request)
 		if err != nil {
-			return TimeoutTaskResponse{err.Error()}, taskerrors.ValidationError{err}
+			return TimeoutTaskResponse{err.Error()}, taskerrors.ValidationError{Origin: err}
 		}
 		err = svc.Timeout(req.TaskID)
 		if err != nil {

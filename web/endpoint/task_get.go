@@ -41,7 +41,7 @@ func TaskStateEndpoint(svc view.TaskView) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalTaskStateRequest(request)
 		if err != nil {
-			return TaskStateResponse{nil, err.Error()}, taskerrors.ValidationError{err}
+			return TaskStateResponse{nil, err.Error()}, taskerrors.ValidationError{Origin: err}
 		}
 
 		task, err := svc.ByID(ctx, req.TaskID)
@@ -56,7 +56,7 @@ func TaskStateEndpoint(svc view.TaskView) endpoint.Endpoint {
 
 func fromTask(task *domain.Task) TaskDTO {
 	var result string
-	if task.State() == "completed" {
+	if task.State() == domain.TaskStateCompleted {
 		result, _ = task.Result()
 	}
 	return TaskDTO{
@@ -64,14 +64,14 @@ func fromTask(task *domain.Task) TaskDTO {
 		Owner:      task.Owner(),
 		TaskQueue:  task.Queue(),
 		Payload:    task.Payload(),
-		State:      task.State(),
+		State:      task.State().String(),
 		Timeout:    task.GetTimeout(),
 		Retries:    task.Retries(),
 		MaxRetries: task.MaxRetries(),
 		CreatedAt:  task.CreatedAt(),
 		UpdatedAt:  task.UpdatedAt(),
 		Result:     result,
-        NotBefore:  task.NotBefore(),
+		NotBefore:  task.NotBefore(),
 	}
 }
 

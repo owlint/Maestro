@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/owlint/maestro/domain"
 )
 
@@ -59,7 +59,7 @@ func (r *SchedulerRepository) NextInQueue(ctx context.Context, queueName string)
 
 func (r *SchedulerRepository) updateOwnerInQueue(ctx context.Context, queueName, owner string) error {
 	key := queueSchedulerKey(queueName)
-	addCmd := r.redis.ZAdd(ctx, key, &redis.Z{
+	addCmd := r.redis.ZAdd(ctx, key, redis.Z{
 		Member: owner,
 		Score:  float64(time.Now().Unix()),
 	})
@@ -121,7 +121,7 @@ func (r *SchedulerRepository) UpdateQueueTTLFor(ctx context.Context, t *domain.T
 
 func (r *SchedulerRepository) createOwnerInQueue(ctx context.Context, t *domain.Task) error {
 	key := queueSchedulerKey(t.Queue())
-	cmd := r.redis.ZAddNX(ctx, key, &redis.Z{
+	cmd := r.redis.ZAddNX(ctx, key, redis.Z{
 		Member: t.Owner(),
 		Score:  0,
 	})

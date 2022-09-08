@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 )
 
 // RedisOptions is a configuration object for redis connection
@@ -34,7 +34,6 @@ func ConnectRedis(config RedisOptions) *redis.Client {
 		DB:       config.Database,
 	})
 	_, err := client.Ping(context.TODO()).Result()
-
 	if err != nil {
 		panic(err)
 	}

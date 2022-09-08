@@ -32,7 +32,7 @@ func CreateTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalCreateTaskRequest(request)
 		if err != nil {
-			return CreateTaskResponse{"", err.Error()}, taskerrors.ValidationError{err}
+			return CreateTaskResponse{"", err.Error()}, taskerrors.ValidationError{Origin: err}
 		}
 		runTimeout := req.RunTimeout
 		if runTimeout == 0 {
@@ -70,7 +70,7 @@ func CreateTaskListEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalCreateTaskListRequest(request)
 		if err != nil {
-			return CreateTaskResponse{"", err.Error()}, taskerrors.ValidationError{err}
+			return CreateTaskResponse{"", err.Error()}, taskerrors.ValidationError{Origin: err}
 		}
 		taskIDs := make([]string, len(req.Tasks))
 		for i, task := range req.Tasks {

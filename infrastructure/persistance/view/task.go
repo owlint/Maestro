@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/bsm/redislock"
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/owlint/maestro/domain"
 	taskerror "github.com/owlint/maestro/errors"
 	"github.com/owlint/maestro/infrastructure/persistance/repository"
@@ -61,7 +61,7 @@ func (v TaskViewImpl) ByID(ctx context.Context, taskID string) (*domain.Task, er
 	}
 
 	if len(keys) != 1 {
-		return nil, taskerror.NotFoundError{errors.New("Zero or more than one task correspond")}
+		return nil, taskerror.NotFoundError{Origin: errors.New("Zero or more than one task correspond")}
 	}
 
 	dataCmd := v.redis.HGetAll(ctx, keys[0])
@@ -142,13 +142,13 @@ func (v TaskViewImpl) QueueStats(ctx context.Context, queue string) (map[string]
 
 	now := time.Now().Unix()
 	stats := map[string][]string{
-		"planned":   make([]string, 0),
-		"pending":   make([]string, 0),
-		"running":   make([]string, 0),
-		"completed": make([]string, 0),
-		"canceled":  make([]string, 0),
-		"failed":    make([]string, 0),
-		"timedout":  make([]string, 0),
+		"planned":                          make([]string, 0),
+		domain.TaskStatePending.String():   make([]string, 0),
+		domain.TaskStateRunning.String():   make([]string, 0),
+		domain.TaskStateCompleted.String(): make([]string, 0),
+		domain.TaskStateCanceled.String():  make([]string, 0),
+		domain.TaskStateFailed.String():    make([]string, 0),
+		domain.TaskStateTimedout.String():  make([]string, 0),
 	}
 	for _, key := range keys {
 		dataCmd := v.redis.HGetAll(ctx, key)
@@ -167,9 +167,9 @@ func (v TaskViewImpl) QueueStats(ctx context.Context, queue string) (map[string]
 				return nil, err
 			}
 
-			state := task.State()
+			state := task.State().String()
 
-			if state == "pending" && task.NotBefore() > now {
+			if state == domain.TaskStatePending.String() && task.NotBefore() > now {
 				state = "planned"
 			}
 
@@ -210,7 +210,7 @@ func (v TaskViewImpl) TimedOut(ctx context.Context) ([]*domain.Task, error) {
 				return nil, fmt.Errorf("Could not load task timeouts for data %v : %w", data, err)
 			}
 
-			if task.State() == "running" && now > task.UpdatedAt()+int64(task.GetTimeout()) {
+			if task.State() == domain.TaskStateRunning && now > task.UpdatedAt()+int64(task.GetTimeout()) {
 				tasks = append(tasks, task)
 			}
 		}
