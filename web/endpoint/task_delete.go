@@ -24,7 +24,7 @@ func DeleteTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalDeleteTaskRequest(request)
 		if err != nil {
-			return DeleteTaskResponse{false, err.Error()}, taskerrors.ValidationError{err}
+			return DeleteTaskResponse{false, err.Error()}, taskerrors.ValidationError{Origin: err}
 		}
 		err = svc.Delete(req.TaskID)
 		if err != nil {
@@ -33,6 +33,7 @@ func DeleteTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 		return DeleteTaskResponse{true, ""}, nil
 	}
 }
+
 func unmarshalDeleteTaskRequest(request interface{}) (*DeleteTaskRequest, error) {
 	req := request.(DeleteTaskRequest)
 	return &req, nil

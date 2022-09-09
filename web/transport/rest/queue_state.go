@@ -16,4 +16,3 @@ func DecodeQueueStatsRequest(_ context.Context, r *http.Request) (interface{}, e
 	}
 	return request, nil
 }
-

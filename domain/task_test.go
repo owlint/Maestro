@@ -17,7 +17,7 @@ func TestCreation(t *testing.T) {
 	assert.Equal(t, task.startTimeout, int32(0))
 	assert.Equal(t, task.retries, int32(0))
 	assert.Equal(t, task.maxRetries, int32(3))
-	assert.Equal(t, task.state, "pending")
+	assert.Equal(t, task.state, TaskStatePending)
 	assert.InDelta(t, time.Now().Unix(), task.createdAt, 5)
 	assert.InDelta(t, time.Now().Unix(), task.updatedAt, 5)
 	assert.InDelta(t, time.Now().Unix(), task.notBefore, 5)
@@ -26,8 +26,9 @@ func TestCreation(t *testing.T) {
 func TestState(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 3)
 
-	assert.Equal(t, task.State(), "pending")
+	assert.Equal(t, task.State(), TaskStatePending)
 }
+
 func TestRetries(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 3)
 
@@ -42,74 +43,97 @@ func TestSelect(t *testing.T) {
 	err := task.Select()
 
 	assert.Nil(t, err)
-	assert.Equal(t, "running", task.state)
+	assert.Equal(t, TaskStateRunning, task.state)
 	assert.NotEqual(t, lastModificationTime, task.updatedAt)
 }
+
 func TestFailRetry(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 1)
-	task.Select()
 
-	err := task.Fail()
+	err := task.Select()
+	assert.NoError(t, err)
+
+	err = task.Fail()
 	assert.Nil(t, err)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "pending", task.state)
+	assert.Equal(t, TaskStatePending, task.state)
 	assert.Equal(t, int32(1), task.retries)
 }
+
 func TestFailed(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 1)
-	task.Select()
-	task.Fail()
-	task.Select()
 
-	err := task.Fail()
+	err := task.Select()
+	assert.NoError(t, err)
+
+	err = task.Fail()
+	assert.NoError(t, err)
+
+	err = task.Select()
+	assert.NoError(t, err)
+
+	err = task.Fail()
 	assert.Nil(t, err)
 
-	assert.Nil(t, err)
-	assert.Equal(t, "failed", task.state)
+	assert.Equal(t, TaskStateFailed, task.state)
 	assert.Equal(t, int32(1), task.retries)
 }
+
 func TestTimeoutRetry(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 1)
-	task.Select()
 
-	err := task.Timeout()
+	err := task.Select()
+	assert.NoError(t, err)
+
+	err = task.Timeout()
 	assert.Nil(t, err)
 
-	assert.Nil(t, err)
-	assert.Equal(t, "pending", task.state)
+	assert.Equal(t, TaskStatePending, task.state)
 	assert.Equal(t, int32(1), task.retries)
 }
+
 func TestTimedout(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 1)
-	task.Select()
-	task.Timeout()
-	task.Select()
 
-	err := task.Timeout()
+	err := task.Select()
+	assert.NoError(t, err)
+
+	err = task.Timeout()
+	assert.NoError(t, err)
+
+	err = task.Select()
+	assert.NoError(t, err)
+
+	err = task.Timeout()
 	assert.Nil(t, err)
 
-	assert.Nil(t, err)
-	assert.Equal(t, "timedout", task.state)
+	assert.Equal(t, TaskStateTimedout, task.state)
 	assert.Equal(t, int32(1), task.retries)
 }
+
 func TestComplete(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 1)
-	task.Select()
 
-	err := task.Complete("this is a result")
+	err := task.Select()
+	assert.NoError(t, err)
+
+	err = task.Complete("this is a result")
 	assert.Nil(t, err)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "completed", task.state)
+	assert.Equal(t, TaskStateCompleted, task.state)
 	assert.Equal(t, "this is a result", task.result)
 	assert.Equal(t, int32(0), task.retries)
 }
+
 func TestResult(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 1)
-	task.Select()
 
-	err := task.Complete("this is a result")
+	err := task.Select()
+	assert.NoError(t, err)
+
+	err = task.Complete("this is a result")
 	assert.Nil(t, err)
 
 	result, err := task.Result()
@@ -117,24 +141,24 @@ func TestResult(t *testing.T) {
 	assert.Equal(t, "this is a result", result)
 }
 
-func testFailUnauthorized(t *testing.T) {
+func TestFailNotRunning(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 3)
 
-	time.Sleep(1 * time.Second)
 	err := task.Fail()
-
-	assert.NotNil(t, err)
+	assert.Error(t, err)
 }
 
 func TestCancelRunning(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 1)
-	task.Select()
 
-	err := task.Cancel()
+	err := task.Select()
+	assert.NoError(t, err)
+
+	err = task.Cancel()
 	assert.Nil(t, err)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "canceled", task.state)
+	assert.Equal(t, TaskStateCanceled, task.state)
 	assert.Equal(t, int32(0), task.retries)
 }
 
@@ -142,20 +166,23 @@ func TestCancelPending(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 1)
 
 	err := task.Cancel()
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
-	assert.Nil(t, err)
-	assert.Equal(t, "canceled", task.state)
+	assert.Equal(t, TaskStateCanceled, task.state)
 	assert.Equal(t, int32(0), task.retries)
 }
 
 func TestCancelOther(t *testing.T) {
 	task := NewTask("laurent", "test", "payload", 10, 0, 0)
-	task.Select()
-	task.Fail()
-	assert.Equal(t, "failed", task.state)
 
-	err := task.Cancel()
+	err := task.Select()
+	assert.NoError(t, err)
+
+	err = task.Fail()
+	assert.NoError(t, err)
+	assert.Equal(t, TaskStateFailed, task.state)
+
+	err = task.Cancel()
 	assert.NotNil(t, err)
 }
 
@@ -176,7 +203,7 @@ func TestCreationFuture(t *testing.T) {
 	assert.Equal(t, task.startTimeout, int32(0))
 	assert.Equal(t, task.retries, int32(0))
 	assert.Equal(t, task.maxRetries, int32(3))
-	assert.Equal(t, task.state, "pending")
+	assert.Equal(t, task.state, TaskStatePending)
 	assert.InDelta(t, time.Now().Unix(), task.createdAt, 5)
 	assert.InDelta(t, time.Now().Unix(), task.updatedAt, 5)
 	assert.InDelta(t, time.Now().Unix()+10, task.notBefore, 5)
@@ -200,7 +227,7 @@ func TestCreationStartTimeout(t *testing.T) {
 	assert.Equal(t, task.startTimeout, int32(7))
 	assert.Equal(t, task.retries, int32(0))
 	assert.Equal(t, task.maxRetries, int32(3))
-	assert.Equal(t, task.state, "pending")
+	assert.Equal(t, task.state, TaskStatePending)
 	assert.InDelta(t, time.Now().Unix(), task.createdAt, 5)
 	assert.InDelta(t, time.Now().Unix(), task.updatedAt, 5)
 	assert.InDelta(t, time.Now().Unix()+10, task.notBefore, 5)
@@ -212,7 +239,7 @@ func TestTaskFromStringMap(t *testing.T) {
 		"owner":        "my owner",
 		"payload":      "content",
 		"task_queue":   "queue",
-		"state":        "pending",
+		"state":        string(TaskStatePending),
 		"timeout":      "30",
 		"startTimeout": "7",
 		"retries":      "1",
@@ -230,7 +257,7 @@ func TestTaskFromStringMap(t *testing.T) {
 	assert.Equal(t, task.startTimeout, int32(7))
 	assert.Equal(t, task.retries, int32(1))
 	assert.Equal(t, task.maxRetries, int32(3))
-	assert.Equal(t, task.state, "pending")
+	assert.Equal(t, task.state, TaskStatePending)
 	assert.Equal(t, task.createdAt, int64(1000))
 	assert.Equal(t, task.updatedAt, int64(2000))
 	assert.Equal(t, task.notBefore, int64(1000))

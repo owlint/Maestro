@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/bsm/redislock"
-	"github.com/go-kit/kit/log"
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
+	"github.com/go-kit/log"
 	"github.com/google/uuid"
 	"github.com/owlint/maestro/domain"
 
-	"github.com/owlint/maestro/infrastructure/persistance/repository"
-	"github.com/owlint/maestro/infrastructure/persistance/view"
+	"github.com/owlint/maestro/infrastructure/persistence/repository"
+	"github.com/owlint/maestro/infrastructure/persistence/view"
 )
 
 // TaskService is a service to manage tasks
@@ -96,7 +96,7 @@ func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, r
 func (s TaskServiceImpl) Select(taskID string) error {
 	ctx := context.Background()
 	if exist, err := s.view.Exists(ctx, taskID); !exist || err != nil {
-		return fmt.Errorf("Could not find task : %s (or error occured : %v)", taskID, err)
+		return fmt.Errorf("Could not find task : %s (or error occurred : %v)", taskID, err)
 	}
 
 	task, err := s.view.ByID(ctx, taskID)
@@ -131,7 +131,7 @@ func (s TaskServiceImpl) Delete(taskID string) error {
 func (s TaskServiceImpl) Fail(taskID string) error {
 	ctx := context.Background()
 	if exist, err := s.view.Exists(ctx, taskID); !exist || err != nil {
-		return fmt.Errorf("Could not find task : %s (or error occured %v)", taskID, err)
+		return fmt.Errorf("Could not find task : %s (or error occurred %v)", taskID, err)
 	}
 
 	task, err := s.view.ByID(ctx, taskID)
@@ -154,7 +154,7 @@ func (s TaskServiceImpl) Fail(taskID string) error {
 		return err
 	}
 
-	if task.State() == "failed" {
+	if task.State() == domain.TaskStateFailed {
 		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 	} else if task.StartTimeout() > 0 {
 		err = s.schedulerRepo.Schedule(ctx, task)
@@ -171,7 +171,7 @@ func (s TaskServiceImpl) Fail(taskID string) error {
 func (s TaskServiceImpl) Timeout(taskID string) error {
 	ctx := context.Background()
 	if exist, err := s.view.Exists(ctx, taskID); !exist || err != nil {
-		return fmt.Errorf("Could not find task : %s (or error occured %v)", taskID, err)
+		return fmt.Errorf("Could not find task : %s (or error occurred %v)", taskID, err)
 	}
 
 	task, err := s.view.ByID(ctx, taskID)
@@ -194,7 +194,7 @@ func (s TaskServiceImpl) Timeout(taskID string) error {
 		return err
 	}
 
-	if task.State() == "timedout" {
+	if task.State() == domain.TaskStateTimedout {
 		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 	} else if task.StartTimeout() > 0 {
 		err = s.schedulerRepo.Schedule(ctx, task)
@@ -211,7 +211,7 @@ func (s TaskServiceImpl) Timeout(taskID string) error {
 func (s TaskServiceImpl) Complete(taskID string, result string) error {
 	ctx := context.Background()
 	if exist, err := s.view.Exists(ctx, taskID); !exist || err != nil {
-		return fmt.Errorf("Could not find task : %s (or error occured %v)", taskID, err)
+		return fmt.Errorf("Could not find task : %s (or error occurred %v)", taskID, err)
 	}
 
 	task, err := s.view.ByID(ctx, taskID)
@@ -241,7 +241,7 @@ func (s TaskServiceImpl) Complete(taskID string, result string) error {
 func (s TaskServiceImpl) Cancel(taskID string) error {
 	ctx := context.Background()
 	if exist, err := s.view.Exists(ctx, taskID); !exist || err != nil {
-		return fmt.Errorf("Could not find task : %s (or error occured %v)", taskID, err)
+		return fmt.Errorf("Could not find task : %s (or error occurred %v)", taskID, err)
 	}
 
 	task, err := s.view.ByID(ctx, taskID)
@@ -268,7 +268,7 @@ func (s TaskServiceImpl) Cancel(taskID string) error {
 }
 
 // ConsumeQueueResult consumes a "finished" item from the given queue
-// "finished" items have state "completed", "timedout" or "failed"
+// "finished" items have state domain.TaskStateCompleted, domain.TaskStateTimedout or domain.TaskStateFailed
 func (s TaskServiceImpl) ConsumeQueueResult(queue string) (*domain.Task, error) {
 	ctx := context.Background()
 
@@ -277,10 +277,10 @@ func (s TaskServiceImpl) ConsumeQueueResult(queue string) (*domain.Task, error) 
 		return nil, err
 	}
 
-	var oldestTask *domain.Task = nil
+	var oldestTask *domain.Task
 	oldestModification := time.Now().Unix()
 	for _, task := range tasks {
-		if task.State() == "completed" || task.State() == "failed" || task.State() == "timedout" {
+		if task.State() == domain.TaskStateCompleted || task.State() == domain.TaskStateFailed || task.State() == domain.TaskStateTimedout {
 			if task.UpdatedAt() < oldestModification {
 				oldestTask = task
 				oldestModification = task.UpdatedAt()
@@ -289,14 +289,18 @@ func (s TaskServiceImpl) ConsumeQueueResult(queue string) (*domain.Task, error) 
 	}
 
 	if oldestTask != nil {
-		s.Delete(oldestTask.TaskID)
+		if err := s.Delete(oldestTask.TaskID); err != nil {
+			return nil, err
+		}
 	}
 
 	return oldestTask, nil
 }
 
 // ############################################################################
-//                                 Logging Middleware
+//
+//	Logging Middleware
+//
 // ############################################################################
 type TaskServiceLogger struct {
 	logger log.Logger
@@ -313,7 +317,7 @@ func NewTaskServiceLogger(logger log.Logger, next TaskService) TaskServiceLogger
 func (l TaskServiceLogger) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
 	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
 	defer func() {
-		l.logger.Log(
+		_ = l.logger.Log(
 			"action", "create",
 			"error", err,
 		)
@@ -321,10 +325,11 @@ func (l TaskServiceLogger) Create(owner string, taskQueue string, timeout int32,
 
 	return result, err
 }
+
 func (l TaskServiceLogger) Select(taskID string) error {
 	err := l.next.Select(taskID)
 	defer func() {
-		l.logger.Log(
+		_ = l.logger.Log(
 			"action", "select",
 			"error", err,
 			"task_id", taskID,
@@ -333,10 +338,11 @@ func (l TaskServiceLogger) Select(taskID string) error {
 
 	return err
 }
+
 func (l TaskServiceLogger) ConsumeQueueResult(queue string) (*domain.Task, error) {
 	task, err := l.next.ConsumeQueueResult(queue)
 	defer func() {
-		l.logger.Log(
+		_ = l.logger.Log(
 			"action", "consume_queue",
 			"error", err,
 			"queue", queue,
@@ -346,9 +352,10 @@ func (l TaskServiceLogger) ConsumeQueueResult(queue string) (*domain.Task, error
 
 	return task, err
 }
+
 func (l TaskServiceLogger) Fail(taskID string) error {
 	err := l.next.Fail(taskID)
-	l.logger.Log(
+	_ = l.logger.Log(
 		"action", "fail",
 		"error", err,
 		"task_id", taskID,
@@ -356,9 +363,10 @@ func (l TaskServiceLogger) Fail(taskID string) error {
 
 	return err
 }
+
 func (l TaskServiceLogger) Delete(taskID string) error {
 	err := l.next.Delete(taskID)
-	l.logger.Log(
+	_ = l.logger.Log(
 		"action", "Delete",
 		"error", err,
 		"task_id", taskID,
@@ -366,10 +374,11 @@ func (l TaskServiceLogger) Delete(taskID string) error {
 
 	return err
 }
+
 func (l TaskServiceLogger) Cancel(taskID string) error {
 	err := l.next.Cancel(taskID)
 	defer func() {
-		l.logger.Log(
+		_ = l.logger.Log(
 			"action", "cancel",
 			"error", err,
 		)
@@ -377,10 +386,11 @@ func (l TaskServiceLogger) Cancel(taskID string) error {
 
 	return err
 }
+
 func (l TaskServiceLogger) Timeout(taskID string) error {
 	err := l.next.Timeout(taskID)
 	defer func() {
-		l.logger.Log(
+		_ = l.logger.Log(
 			"action", "timeout",
 			"error", err,
 			"task_id", taskID,
@@ -389,10 +399,11 @@ func (l TaskServiceLogger) Timeout(taskID string) error {
 
 	return err
 }
+
 func (l TaskServiceLogger) Complete(taskID string, result string) error {
 	err := l.next.Complete(taskID, result)
 	defer func() {
-		l.logger.Log(
+		_ = l.logger.Log(
 			"action", "complete",
 			"error", err,
 		)
@@ -402,7 +413,9 @@ func (l TaskServiceLogger) Complete(taskID string, result string) error {
 }
 
 // ############################################################################
-//                                 Locking Middleware
+//
+//	Locking Middleware
+//
 // ############################################################################
 type TaskServiceLocker struct {
 	locker *redislock.Client
@@ -419,74 +432,82 @@ func NewTaskServiceLocker(locker *redislock.Client, next TaskService) TaskServic
 func (l TaskServiceLocker) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
 	return l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
 }
+
 func (l TaskServiceLocker) Select(taskID string) error {
 	ctx := context.Background()
 	lock, err := l.acquire(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	defer lock.Release(ctx)
+	defer func() { _ = lock.Release(ctx) }()
 	return l.next.Select(taskID)
 }
+
 func (l TaskServiceLocker) Delete(taskID string) error {
 	ctx := context.Background()
 	lock, err := l.acquire(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	defer lock.Release(ctx)
+	defer func() { _ = lock.Release(ctx) }()
 	return l.next.Delete(taskID)
 }
+
 func (l TaskServiceLocker) Fail(taskID string) error {
 	ctx := context.Background()
 	lock, err := l.acquire(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	defer lock.Release(ctx)
+	defer func() { _ = lock.Release(ctx) }()
 	return l.next.Fail(taskID)
 }
+
 func (l TaskServiceLocker) ConsumeQueueResult(queue string) (*domain.Task, error) {
 	ctx := context.Background()
 	lock, err := l.acquire(ctx, queue)
 	if err != nil {
 		return nil, err
 	}
-	defer lock.Release(ctx)
+	defer func() { _ = lock.Release(ctx) }()
 	return l.next.ConsumeQueueResult(queue)
 }
+
 func (l TaskServiceLocker) Cancel(taskID string) error {
 	ctx := context.Background()
 	lock, err := l.acquire(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	defer lock.Release(ctx)
+	defer func() { _ = lock.Release(ctx) }()
 	return l.next.Cancel(taskID)
 }
+
 func (l TaskServiceLocker) Timeout(taskID string) error {
 	ctx := context.Background()
 	lock, err := l.acquire(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	defer lock.Release(ctx)
+	defer func() { _ = lock.Release(ctx) }()
 	return l.next.Timeout(taskID)
 }
+
 func (l TaskServiceLocker) Complete(taskID string, result string) error {
 	ctx := context.Background()
 	lock, err := l.acquire(ctx, taskID)
 	if err != nil {
 		return err
 	}
-	defer lock.Release(ctx)
+	defer func() { _ = lock.Release(ctx) }()
 
 	return l.next.Complete(taskID, result)
 }
 
 func (l TaskServiceLocker) acquire(ctx context.Context, name string) (*redislock.Lock, error) {
-	// Retry every 100ms, for up-to 3x
-	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100+rand.Intn(50))*time.Millisecond), 10)
+	// Retry every ~100ms, for up-to 3x.
+	delay := time.Duration(100+rand.Intn(50)) * time.Millisecond // #nosec G404
+	backoff := redislock.LimitRetry(redislock.LinearBackoff(delay), 10)
 
 	// Obtain lock with retry
 	lock, err := l.locker.Obtain(ctx, name, 10*time.Second, &redislock.Options{
@@ -505,7 +526,9 @@ func (l TaskServiceLocker) acquire(ctx context.Context, name string) (*redislock
 }
 
 // ############################################################################
-//                            Instrumenting Middleware
+//
+//	Instrumenting Middleware
+//
 // ############################################################################
 type TaskServiceInstrumenter struct {
 	instanceID string
@@ -524,30 +547,33 @@ func NewTaskServiceInstrumenter(counter *kitprometheus.Counter, next TaskService
 func (l TaskServiceInstrumenter) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
 	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
 	defer func() {
-		lvs := []string{"state", "pending", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", domain.TaskStatePending.String(), "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
 	return result, err
 }
+
 func (l TaskServiceInstrumenter) Select(taskID string) error {
 	err := l.next.Select(taskID)
 	defer func() {
-		lvs := []string{"state", "running", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", domain.TaskStateRunning.String(), "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
 	return err
 }
+
 func (l TaskServiceInstrumenter) Fail(taskID string) error {
 	err := l.next.Fail(taskID)
 	defer func() {
-		lvs := []string{"state", "failed", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", domain.TaskStateFailed.String(), "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
 	return err
 }
+
 func (l TaskServiceInstrumenter) Delete(taskID string) error {
 	err := l.next.Delete(taskID)
 	defer func() {
@@ -557,24 +583,27 @@ func (l TaskServiceInstrumenter) Delete(taskID string) error {
 
 	return err
 }
+
 func (l TaskServiceInstrumenter) Cancel(taskID string) error {
 	err := l.next.Cancel(taskID)
 	defer func() {
-		lvs := []string{"state", "canceled", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", domain.TaskStateCanceled.String(), "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
 	return err
 }
+
 func (l TaskServiceInstrumenter) Timeout(taskID string) error {
 	err := l.next.Timeout(taskID)
 	defer func() {
-		lvs := []string{"state", "timedout", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", domain.TaskStateTimedout.String(), "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 
 	return err
 }
+
 func (l TaskServiceInstrumenter) ConsumeQueueResult(queue string) (*domain.Task, error) {
 	task, err := l.next.ConsumeQueueResult(queue)
 	defer func() {
@@ -584,10 +613,11 @@ func (l TaskServiceInstrumenter) ConsumeQueueResult(queue string) (*domain.Task,
 
 	return task, err
 }
+
 func (l TaskServiceInstrumenter) Complete(taskID string, result string) error {
 	err := l.next.Complete(taskID, result)
 	defer func() {
-		lvs := []string{"state", "completed", "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
+		lvs := []string{"state", domain.TaskStateCompleted.String(), "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)
 	}()
 

@@ -7,7 +7,7 @@ import (
 	"github.com/go-kit/kit/endpoint"
 	"github.com/owlint/maestro/domain"
 	taskerrors "github.com/owlint/maestro/errors"
-	"github.com/owlint/maestro/infrastructure/persistance/view"
+	"github.com/owlint/maestro/infrastructure/persistence/view"
 	"github.com/owlint/maestro/infrastructure/services"
 )
 
@@ -24,7 +24,7 @@ func QueueNextEndpoint(
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalQueueNextRequest(request)
 		if err != nil {
-			return TaskStateResponse{nil, err.Error()}, taskerrors.ValidationError{err}
+			return TaskStateResponse{nil, err.Error()}, taskerrors.ValidationError{Origin: err}
 		}
 
 		selected := false
@@ -48,7 +48,7 @@ func QueueNextEndpoint(
 				return TaskStateResponse{nil, err.Error()}, err
 			}
 
-			if next.State() == "pending" {
+			if next.State() == domain.TaskStatePending {
 				err = svc.Select(next.TaskID)
 				if err != nil {
 					return TaskStateResponse{nil, err.Error()}, err
@@ -79,12 +79,12 @@ func ConsumeQueueEndpoint(
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalConsumeQueueRequest(request)
 		if err != nil {
-			return TaskStateResponse{nil, err.Error()}, taskerrors.ValidationError{err}
+			return TaskStateResponse{nil, err.Error()}, taskerrors.ValidationError{Origin: err}
 		}
 
 		next, err := svc.ConsumeQueueResult(req.Queue)
 		if err != nil {
-			return TaskStateResponse{nil, err.Error()}, taskerrors.NotFoundError{err}
+			return TaskStateResponse{nil, err.Error()}, taskerrors.NotFoundError{Origin: err}
 		}
 
 		if next == nil {

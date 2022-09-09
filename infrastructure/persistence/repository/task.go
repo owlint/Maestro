@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/owlint/maestro/domain"
 	taskerror "github.com/owlint/maestro/errors"
 )
@@ -26,7 +26,7 @@ func (r TaskRepository) Save(ctx context.Context, t domain.Task) error {
 		"owner":        t.Owner(),
 		"task_queue":   t.Queue(),
 		"payload":      t.Payload(),
-		"state":        t.State(),
+		"state":        t.State().String(),
 		"timeout":      t.GetTimeout(),
 		"startTimeout": t.StartTimeout(),
 		"retries":      t.Retries(),
@@ -35,7 +35,7 @@ func (r TaskRepository) Save(ctx context.Context, t domain.Task) error {
 		"updated_at":   t.UpdatedAt(),
 		"not_before":   t.NotBefore(),
 	}
-	if t.State() == "completed" {
+	if t.State() == domain.TaskStateCompleted {
 		result, _ := t.Result()
 		payload["result"] = result
 	}
@@ -85,7 +85,7 @@ func (r TaskRepository) taskIDToKey(ctx context.Context, taskID string) (string,
 	}
 
 	if len(keys) != 1 {
-		return "", taskerror.NotFoundError{fmt.Errorf("%d tasks match this id", len(keys))}
+		return "", taskerror.NotFoundError{Origin: fmt.Errorf("%d tasks match this id", len(keys))}
 	}
 
 	return keys[0], nil
