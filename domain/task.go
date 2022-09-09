@@ -179,7 +179,7 @@ func (t *Task) Payload() string {
 
 // State returns the state of the task
 func (t *Task) State() TaskState {
-	return TaskState(t.state)
+	return t.state
 }
 
 func (t *Task) changeState(newState TaskState) {
