@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-kit/kit/endpoint"
 	taskerrors "github.com/owlint/maestro/errors"
-	"github.com/owlint/maestro/infrastructure/persistance/view"
+	"github.com/owlint/maestro/infrastructure/persistence/view"
 )
 
 // QueueStatsRequest is the request to complete a task

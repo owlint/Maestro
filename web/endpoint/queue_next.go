@@ -7,7 +7,7 @@ import (
 	"github.com/go-kit/kit/endpoint"
 	"github.com/owlint/maestro/domain"
 	taskerrors "github.com/owlint/maestro/errors"
-	"github.com/owlint/maestro/infrastructure/persistance/view"
+	"github.com/owlint/maestro/infrastructure/persistence/view"
 	"github.com/owlint/maestro/infrastructure/services"
 )
 

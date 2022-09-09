@@ -10,8 +10,8 @@ import (
 	"github.com/go-redis/redis/v9"
 	"github.com/google/uuid"
 	"github.com/owlint/maestro/domain"
-	"github.com/owlint/maestro/infrastructure/persistance/repository"
-	"github.com/owlint/maestro/infrastructure/persistance/view"
+	"github.com/owlint/maestro/infrastructure/persistence/repository"
+	"github.com/owlint/maestro/infrastructure/persistence/view"
 	"github.com/owlint/maestro/testutils"
 	"github.com/stretchr/testify/assert"
 )
@@ -137,9 +137,12 @@ func TestComplete(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		view := view.NewTaskView(redis, schedulerRepo)
 		service := NewTaskService(taskRepo, schedulerRepo, view, 300)
+
 		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 		assert.Nil(t, err)
+
 		err = service.Select(taskID)
+		assert.NoError(t, err)
 
 		err = service.Complete(taskID, "")
 		assert.Nil(t, err)
@@ -147,6 +150,7 @@ func TestComplete(t *testing.T) {
 		task, err := view.ByID(ctx, taskID)
 		assert.Nil(t, err)
 		assert.Equal(t, domain.TaskStateCompleted, task.State())
+
 		ttl, err := taskTTL(ctx, redis, taskID)
 		assert.Nil(t, err)
 		assert.True(t, ttl.Seconds() > 200)
@@ -161,9 +165,12 @@ func TestCompleteExpiration(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		view := view.NewTaskView(redis, schedulerRepo)
 		service := NewTaskService(taskRepo, schedulerRepo, view, 800)
+
 		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 		assert.Nil(t, err)
+
 		err = service.Select(taskID)
+		assert.NoError(t, err)
 
 		err = service.Complete(taskID, "")
 		assert.Nil(t, err)
@@ -200,7 +207,9 @@ func TestCancel(t *testing.T) {
 
 		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
 		assert.Nil(t, err)
+
 		err = service.Select(taskID)
+		assert.NoError(t, err)
 
 		err = service.Cancel(taskID)
 		assert.Nil(t, err)
@@ -208,6 +217,7 @@ func TestCancel(t *testing.T) {
 		task, err := view.ByID(ctx, taskID)
 		assert.Nil(t, err)
 		assert.Equal(t, domain.TaskStateCanceled, task.State())
+
 		ttl, err := taskTTL(ctx, redis, taskID)
 		assert.Nil(t, err)
 		assert.True(t, ttl.Seconds() > 200)
@@ -234,9 +244,12 @@ func TestFail(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		view := view.NewTaskView(redis, schedulerRepo)
 		service := NewTaskService(taskRepo, schedulerRepo, view, 300)
+
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 		assert.Nil(t, err)
+
 		err = service.Select(taskID)
+		assert.NoError(t, err)
 
 		err = service.Fail(taskID)
 		assert.Nil(t, err)
@@ -256,9 +269,12 @@ func TestFailTTL(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		view := view.NewTaskView(redis, schedulerRepo)
 		service := NewTaskService(taskRepo, schedulerRepo, view, 300)
+
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5)
 		assert.Nil(t, err)
+
 		err = service.Select(taskID)
+		assert.NoError(t, err)
 
 		err = service.Fail(taskID)
 		assert.Nil(t, err)
@@ -282,11 +298,18 @@ func TestFailed(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		view := view.NewTaskView(redis, schedulerRepo)
 		service := NewTaskService(taskRepo, schedulerRepo, view, 300)
+
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 		assert.Nil(t, err)
-		service.Select(taskID)
-		service.Fail(taskID)
-		service.Select(taskID)
+
+		err = service.Select(taskID)
+		assert.NoError(t, err)
+
+		err = service.Fail(taskID)
+		assert.NoError(t, err)
+
+		err = service.Select(taskID)
+		assert.NoError(t, err)
 
 		err = service.Fail(taskID)
 		assert.Nil(t, err)
@@ -321,9 +344,12 @@ func TestTimeout(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		view := view.NewTaskView(redis, schedulerRepo)
 		service := NewTaskService(taskRepo, schedulerRepo, view, 300)
+
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 		assert.Nil(t, err)
+
 		err = service.Select(taskID)
+		assert.NoError(t, err)
 
 		err = service.Timeout(taskID)
 		assert.Nil(t, err)
@@ -343,9 +369,12 @@ func TestTimeoutTTL(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		view := view.NewTaskView(redis, schedulerRepo)
 		service := NewTaskService(taskRepo, schedulerRepo, view, 300)
+
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5)
 		assert.Nil(t, err)
+
 		err = service.Select(taskID)
+		assert.NoError(t, err)
 
 		err = service.Timeout(taskID)
 		assert.Nil(t, err)
@@ -369,11 +398,18 @@ func TestTimeouted(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		view := view.NewTaskView(redis, schedulerRepo)
 		service := NewTaskService(taskRepo, schedulerRepo, view, 300)
+
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
 		assert.Nil(t, err)
-		service.Select(taskID)
-		service.Timeout(taskID)
-		service.Select(taskID)
+
+		err = service.Select(taskID)
+		assert.NoError(t, err)
+
+		err = service.Timeout(taskID)
+		assert.NoError(t, err)
+
+		err = service.Select(taskID)
+		assert.NoError(t, err)
 
 		err = service.Timeout(taskID)
 		assert.Nil(t, err)

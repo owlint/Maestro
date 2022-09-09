@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func OwnerScheduledWithTimestamp(t *testing.T, ctx context.Context, client *redis.Client, queue, owner string, timestamp int) bool {
+func ownerScheduledWithTimestamp(ctx context.Context, t *testing.T, client *redis.Client, queue, owner string, timestamp int) bool {
 	key := fmt.Sprintf("scheduler-%s", queue)
 	scoreCmd := client.ZScore(ctx, key, owner)
 	if scoreCmd.Err() == redis.Nil {
@@ -23,7 +23,7 @@ func OwnerScheduledWithTimestamp(t *testing.T, ctx context.Context, client *redi
 	return scoreCmd.Val() == float64(timestamp)
 }
 
-func OwnerQueueLen(t *testing.T, ctx context.Context, client *redis.Client, queue, owner string) int64 {
+func ownerQueueLen(ctx context.Context, t *testing.T, client *redis.Client, queue, owner string) int64 {
 	key := fmt.Sprintf("scheduler-%s-%s", queue, owner)
 	lenCmd := client.LLen(ctx, key)
 	assert.NoError(t, lenCmd.Err())
@@ -31,7 +31,7 @@ func OwnerQueueLen(t *testing.T, ctx context.Context, client *redis.Client, queu
 	return lenCmd.Val()
 }
 
-func QueueSchedulerTTL(t *testing.T, ctx context.Context, client *redis.Client, queue string) float64 {
+func queueSchedulerTTL(ctx context.Context, t *testing.T, client *redis.Client, queue string) float64 {
 	key := fmt.Sprintf("scheduler-%s", queue)
 	lenCmd := client.TTL(ctx, key)
 	assert.NoError(t, lenCmd.Err())
@@ -55,9 +55,9 @@ func TestSchedule(t *testing.T) {
 
 		err := repo.Schedule(ctx, task)
 		assert.NoError(t, err)
-		assert.True(t, OwnerScheduledWithTimestamp(t, ctx, redis, "queue", "owner", 0))
-		assert.Equal(t, int64(1), OwnerQueueLen(t, ctx, redis, "queue", "owner"))
-		assert.InDelta(t, float64(7200), QueueSchedulerTTL(t, ctx, redis, "queue"), 1)
+		assert.True(t, ownerScheduledWithTimestamp(ctx, t, redis, "queue", "owner", 0))
+		assert.Equal(t, int64(1), ownerQueueLen(ctx, t, redis, "queue", "owner"))
+		assert.InDelta(t, float64(7200), queueSchedulerTTL(ctx, t, redis, "queue"), 1)
 	})
 }
 
@@ -79,7 +79,7 @@ func TestSchduleNotBefore(t *testing.T) {
 
 		err = repo.Schedule(ctx, task)
 		assert.NoError(t, err)
-		assert.InDelta(t, 8200, QueueSchedulerTTL(t, ctx, redis, "queue4"), 1)
+		assert.InDelta(t, 8200, queueSchedulerTTL(ctx, t, redis, "queue4"), 1)
 	})
 }
 
@@ -99,7 +99,7 @@ func TestSchduleStartTimeout(t *testing.T) {
 
 		err := repo.Schedule(ctx, task)
 		assert.NoError(t, err)
-		assert.InDelta(t, 8200, QueueSchedulerTTL(t, ctx, redis, "queue5"), 1)
+		assert.InDelta(t, 8200, queueSchedulerTTL(ctx, t, redis, "queue5"), 1)
 	})
 }
 
@@ -123,8 +123,8 @@ func TestNextInQueue(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, taskID)
 		assert.Equal(t, task.ObjectID(), *taskID)
-		assert.False(t, OwnerScheduledWithTimestamp(t, ctx, redis, "queue2", "owner", 0))
-		assert.Equal(t, int64(0), OwnerQueueLen(t, ctx, redis, "queue2", "owner"))
+		assert.False(t, ownerScheduledWithTimestamp(ctx, t, redis, "queue2", "owner", 0))
+		assert.Equal(t, int64(0), ownerQueueLen(ctx, t, redis, "queue2", "owner"))
 	})
 }
 
@@ -184,6 +184,6 @@ func TestUpdateSchedulerTTL(t *testing.T) {
 
 		err = repo.UpdateQueueTTLFor(ctx, task)
 		assert.NoError(t, err)
-		assert.True(t, OwnerScheduledWithTimestamp(t, ctx, redis, "queue3", "owner", 0))
+		assert.True(t, ownerScheduledWithTimestamp(ctx, t, redis, "queue3", "owner", 0))
 	})
 }

@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-redis/redis/v9"
 	"github.com/owlint/maestro/domain"
-	"github.com/owlint/maestro/infrastructure/persistance/repository"
-	"github.com/owlint/maestro/infrastructure/persistance/view"
+	"github.com/owlint/maestro/infrastructure/persistence/repository"
+	"github.com/owlint/maestro/infrastructure/persistence/view"
 	"github.com/owlint/maestro/testutils"
 	"github.com/stretchr/testify/assert"
 )

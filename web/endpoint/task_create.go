@@ -14,7 +14,7 @@ type CreateTaskRequest struct {
 	Owner        string `json:"owner"`
 	Queue        string `json:"queue"`
 	Retries      int32  `json:"retries"`
-	Timeout      int32  `json:"timeout,omnitempty"`
+	Timeout      int32  `json:"timeout,omitempty"`
 	RunTimeout   int32  `json:"run_timeout,omitempty"`
 	StartTimeout int32  `json:"start_timeout,omitempty"`
 	Payload      string `json:"payload"`

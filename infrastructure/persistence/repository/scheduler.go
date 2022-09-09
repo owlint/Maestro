@@ -9,7 +9,7 @@ import (
 	"github.com/owlint/maestro/domain"
 )
 
-const SCHEDULER_TTL = 7200
+const schedulerTTL = 7200
 
 type SchedulerRepository struct {
 	redis *redis.Client
@@ -110,7 +110,7 @@ func (r *SchedulerRepository) UpdateQueueTTLFor(ctx context.Context, t *domain.T
 	if taskTTL < 0 {
 		taskTTL = 0
 	}
-	queueTTL := taskTTL + SCHEDULER_TTL
+	queueTTL := taskTTL + schedulerTTL
 
 	if queueTTL > int64(remainingTTL) {
 		r.redis.Expire(ctx, key, time.Duration(queueTTL)*time.Second)

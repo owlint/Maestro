@@ -277,6 +277,6 @@ func (t *Task) updated() {
 }
 
 func (t *Task) retry() {
-	t.retries += 1
+	t.retries++
 	t.changeState(TaskStatePending)
 }

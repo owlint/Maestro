@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 
-	"github.com/owlint/maestro/infrastructure/persistance/view"
+	"github.com/owlint/maestro/infrastructure/persistence/view"
 )
 
 // TaskTimeoutService is a service to manage task timeouts

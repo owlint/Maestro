@@ -8,7 +8,7 @@ import (
 	"github.com/go-redis/redis/v9"
 	"github.com/google/uuid"
 	"github.com/owlint/maestro/domain"
-	"github.com/owlint/maestro/infrastructure/persistance/repository"
+	"github.com/owlint/maestro/infrastructure/persistence/repository"
 	"github.com/owlint/maestro/testutils"
 	"github.com/stretchr/testify/assert"
 )
@@ -66,7 +66,10 @@ func TestQueueStats(t *testing.T) {
 		queue := uuid.New().String()
 		task1 := domain.NewTask(owner, queue, "payload", 10, 0, 2)
 		task2 := domain.NewTask(owner, queue, "payload", 10, 0, 2)
-		task2.Select()
+
+		err := task2.Select()
+		assert.NoError(t, err)
+
 		task3, err := domain.NewFutureTask(owner, queue, "payload", 10, 2, 0, time.Now().Unix()+1000)
 		assert.Nil(t, err)
 

@@ -11,7 +11,7 @@ import (
 	"github.com/go-redis/redis/v9"
 	"github.com/owlint/maestro/domain"
 	taskerror "github.com/owlint/maestro/errors"
-	"github.com/owlint/maestro/infrastructure/persistance/repository"
+	"github.com/owlint/maestro/infrastructure/persistence/repository"
 )
 
 type TaskView interface {
@@ -256,7 +256,7 @@ func (v TaskViewLocker) TimedOut(ctx context.Context) ([]*domain.Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() { lock.Release(ctx) }()
+	defer func() { _ = lock.Release(ctx) }()
 
 	result, err := v.next.TimedOut(ctx)
 
@@ -264,8 +264,9 @@ func (v TaskViewLocker) TimedOut(ctx context.Context) ([]*domain.Task, error) {
 }
 
 func (v TaskViewLocker) acquire(ctx context.Context, name string) (*redislock.Lock, error) {
-	// Retry every 100ms, for up-to 3x
-	backoff := redislock.LimitRetry(redislock.LinearBackoff(time.Duration(100+rand.Intn(50))*time.Millisecond), 10)
+	// Retry every ~100ms, for up-to 3x.
+	delay := time.Duration(100+rand.Intn(50)) * time.Millisecond // #nosec G404
+	backoff := redislock.LimitRetry(redislock.LinearBackoff(delay), 10)
 
 	// Obtain lock with retry
 	lock, err := v.locker.Obtain(ctx, name, 10*time.Second, &redislock.Options{

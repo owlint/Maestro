@@ -7,7 +7,7 @@ import (
 
 	"github.com/bsm/redislock"
 	"github.com/go-redis/redis/v9"
-	"github.com/owlint/maestro/infrastructure/persistance/drivers"
+	"github.com/owlint/maestro/infrastructure/persistence/drivers"
 )
 
 const (
@@ -42,7 +42,7 @@ func WithTestRedis(testFunc func(conn *redis.Client)) {
 	if err != nil {
 		panic(err)
 	}
-	defer lock.Release(ctx)
+	defer func() { _ = lock.Release(ctx) }()
 
 	// Connect to DB number x.
 	opts := drivers.NewRedisOptions()
