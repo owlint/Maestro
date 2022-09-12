@@ -20,11 +20,11 @@ func TestPublishConsume(t *testing.T) {
 			State:   "saved",
 		}
 
-		taskEventPublisher := repository.NewTaskEventPublisher(conn, "foo")
+		taskEventPublisher := repository.NewTaskEventPublisher(conn, "test_queue")
 		err := taskEventPublisher.Publish(context.Background(), inputTask)
 		assert.NoError(t, err)
 
-		taskEventConsumer := client.NewTaskEventConsumer(conn, "foo")
+		taskEventConsumer := client.NewTaskEventConsumer(conn, "test_queue")
 		outputTask, err := taskEventConsumer.Next(context.Background(), 0)
 		assert.NoError(t, err)
 		assert.Equal(t, &inputTask, outputTask)
@@ -33,11 +33,12 @@ func TestPublishConsume(t *testing.T) {
 
 func TestConsumeTimeout(t *testing.T) {
 	testutils.WithTestRedis(func(conn *redis.Client) {
-		taskEventConsumer := client.NewTaskEventConsumer(conn, "foo")
+		taskEventConsumer := client.NewTaskEventConsumer(conn, "test_queue")
 
-		// Cancellation through the context doesn't work while the client is
-		// blocking and the minimum supported timeout duration is 1 second.
-		task, err := taskEventConsumer.Next(context.Background(), 1*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		task, err := taskEventConsumer.Next(ctx, time.Second)
 
 		assert.Nil(t, task)
 		assert.ErrorIs(t, err, context.DeadlineExceeded)

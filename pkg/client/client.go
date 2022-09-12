@@ -25,16 +25,33 @@ func NewTaskEventConsumer(redisClient *redis.Client, queueName string) *TaskEven
 	}
 }
 
+// Next gets the next task event from the queue.
+//
+// To set a maximum blocking duration, use the timeout argument. A value less
+// or equal to 0 disables the timeout. The minimum supported duration is 1
+// second.
+//
+// Cancellation through the context doesn't work while the Redis client is
+// waiting for the next item, so make sure you set a timeout > 0.
 func (c TaskEventConsumer) Next(ctx context.Context, timeout time.Duration) (*TaskEvent, error) {
-	b, err := c.redisClient.BRPop(ctx, timeout, c.queueName).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get next task event from queue: %w", err)
-	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 
-	event := &TaskEvent{}
-	if err := json.Unmarshal([]byte(b[1]), event); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal task event: %w", err)
-	}
+		values, err := c.redisClient.BLPop(ctx, timeout, c.queueName).Result()
+		switch {
+		case err == redis.Nil:
+			continue
+		case err != nil:
+			return nil, fmt.Errorf("failed to get next task event: %w", err)
+		}
 
-	return event, nil
+		event := &TaskEvent{}
+		if err := json.Unmarshal([]byte(values[1]), event); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal task event: %w", err)
+		}
+
+		return event, nil
+	}
 }
