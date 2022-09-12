@@ -11,7 +11,19 @@ import (
 	"github.com/owlint/maestro/internal/domain"
 )
 
-type TaskEvent = domain.TaskEvent
+type (
+	TaskEvent = domain.TaskEvent
+	TaskState = domain.TaskState
+)
+
+const (
+	TaskStatePending   TaskState = domain.TaskStatePending
+	TaskStateRunning   TaskState = domain.TaskStateRunning
+	TaskStateCompleted TaskState = domain.TaskStateCompleted
+	TaskStateFailed    TaskState = domain.TaskStateFailed
+	TaskStateCanceled  TaskState = domain.TaskStateCanceled
+	TaskStateTimedout  TaskState = domain.TaskStateTimedout
+)
 
 type TaskEventConsumer struct {
 	redisClient *redis.Client
