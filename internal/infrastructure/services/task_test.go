@@ -145,6 +145,7 @@ func TestSelect(t *testing.T) {
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 1,
 			},
 		}, eventPublisher.Published())
 	})
@@ -184,6 +185,7 @@ func TestSelectTTL(t *testing.T) {
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 1,
 			},
 		}, eventPublisher.Published())
 	})
@@ -241,11 +243,13 @@ func TestComplete(t *testing.T) {
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 1,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateCompleted,
+				Version: 2,
 			},
 		}, eventPublisher.Published())
 	})
@@ -287,11 +291,13 @@ func TestCompleteExpiration(t *testing.T) {
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 1,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateCompleted,
+				Version: 2,
 			},
 		}, eventPublisher.Published())
 	})
@@ -349,11 +355,13 @@ func TestCancel(t *testing.T) {
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 1,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateCanceled,
+				Version: 2,
 			},
 		}, eventPublisher.Published())
 	})
@@ -408,11 +416,13 @@ func TestFail(t *testing.T) {
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 1,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStatePending,
+				Version: 2,
 			},
 		}, eventPublisher.Published())
 	})
@@ -456,11 +466,13 @@ func TestFailTTL(t *testing.T) {
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 1,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStatePending,
+				Version: 2,
 			},
 		}, eventPublisher.Published())
 	})
@@ -509,21 +521,25 @@ func TestFailed(t *testing.T) {
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 1,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStatePending,
+				Version: 2,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 3,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateFailed,
+				Version: 4,
 			},
 		}, eventPublisher.Published())
 	})
@@ -578,11 +594,13 @@ func TestTimeout(t *testing.T) {
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 1,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStatePending,
+				Version: 2,
 			},
 		}, eventPublisher.Published())
 	})
@@ -626,11 +644,13 @@ func TestTimeoutTTL(t *testing.T) {
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 1,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStatePending,
+				Version: 2,
 			},
 		}, eventPublisher.Published())
 	})
@@ -680,21 +700,25 @@ func TestTimeouted(t *testing.T) {
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 1,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStatePending,
+				Version: 2,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateRunning,
+				Version: 3,
 			},
 			{
 				TaskID:  taskID,
 				OwnerID: "owner",
 				State:   domain.TaskStateTimedout,
+				Version: 4,
 			},
 		}, eventPublisher.Published())
 	})

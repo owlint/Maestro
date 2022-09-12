@@ -247,6 +247,7 @@ func TestTaskFromStringMap(t *testing.T) {
 		"created_at":   "1000",
 		"updated_at":   "2000",
 		"not_before":   "1000",
+		"version":      "42",
 	})
 
 	assert.NotNil(t, task)
@@ -261,4 +262,5 @@ func TestTaskFromStringMap(t *testing.T) {
 	assert.Equal(t, task.createdAt, int64(1000))
 	assert.Equal(t, task.updatedAt, int64(2000))
 	assert.Equal(t, task.notBefore, int64(1000))
+	assert.Equal(t, task.version, 42)
 }

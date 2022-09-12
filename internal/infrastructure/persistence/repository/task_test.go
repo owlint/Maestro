@@ -46,6 +46,7 @@ func TestSave(t *testing.T) {
 			"created_at":   strconv.FormatInt(task.CreatedAt(), 10),
 			"updated_at":   strconv.FormatInt(task.UpdatedAt(), 10),
 			"not_before":   strconv.FormatInt(task.NotBefore(), 10),
+			"version":      strconv.FormatInt(0, 10),
 		}
 		assert.Equal(t, shouldBe, values)
 

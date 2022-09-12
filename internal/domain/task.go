@@ -28,6 +28,7 @@ type TaskEvent struct {
 	TaskID  string    `json:"task_id"`
 	OwnerID string    `json:"owner_id"`
 	State   TaskState `json:"state"`
+	Version int       `json:"version"`
 }
 
 // Task is a task to be executed
@@ -45,6 +46,7 @@ type Task struct {
 	notBefore    int64
 	startTimeout int32
 	result       string
+	version      int
 
 	events []TaskEvent
 }
@@ -136,6 +138,14 @@ func TaskFromStringMap(data map[string]string) (*Task, error) {
 		return nil, err
 	}
 
+	version := 0
+	if versionStr, ok := data["version"]; ok {
+		version, err = strconv.Atoi(versionStr)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	task := &Task{
 		TaskID:       data["task_id"],
 		owner:        data["owner"],
@@ -149,6 +159,7 @@ func TaskFromStringMap(data map[string]string) (*Task, error) {
 		createdAt:    createdAt,
 		updatedAt:    updatedAt,
 		notBefore:    notBefore,
+		version:      version,
 	}
 
 	if result, present := data["result"]; present {
@@ -215,6 +226,7 @@ func (t *Task) changeState(newState TaskState) {
 		TaskID:  t.TaskID,
 		OwnerID: t.owner,
 		State:   t.state,
+		Version: t.version,
 	})
 }
 
@@ -305,8 +317,13 @@ func (t *Task) Timeout() error {
 	return nil
 }
 
+func (t Task) Version() int {
+	return t.version
+}
+
 func (t *Task) updated() {
 	t.updatedAt = time.Now().Unix()
+	t.version++
 }
 
 func (t *Task) retry() {
