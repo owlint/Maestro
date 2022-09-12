@@ -12,12 +12,12 @@ import (
 	httptransport "github.com/go-kit/kit/transport/http"
 	"github.com/go-kit/log"
 	"github.com/julienschmidt/httprouter"
-	"github.com/owlint/maestro/infrastructure/persistence/drivers"
-	"github.com/owlint/maestro/infrastructure/persistence/repository"
-	"github.com/owlint/maestro/infrastructure/persistence/view"
-	"github.com/owlint/maestro/infrastructure/services"
-	"github.com/owlint/maestro/web/endpoint"
-	"github.com/owlint/maestro/web/transport/rest"
+	"github.com/owlint/maestro/internal/infrastructure/persistence/drivers"
+	"github.com/owlint/maestro/internal/infrastructure/persistence/repository"
+	"github.com/owlint/maestro/internal/infrastructure/persistence/view"
+	"github.com/owlint/maestro/internal/infrastructure/services"
+	"github.com/owlint/maestro/internal/web/endpoint"
+	"github.com/owlint/maestro/internal/web/transport/rest"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -39,13 +39,14 @@ func main() {
 
 	taskRepo := repository.NewTaskRepository(redisClient)
 	schedulerRepo := repository.NewSchedulerRepository(redisClient)
+	taskEventPublisher := repository.NewTaskEventPublisher(redisClient, "maestro_task_event_queue")
 	view := view.NewTaskViewLocker(locker, view.NewTaskView(redisClient, schedulerRepo))
 	taskService := services.NewTaskServiceInstrumenter(stateCount,
 		services.NewTaskServiceLocker(
 			locker,
 			services.NewTaskServiceLogger(
 				log.With(logger, "layer", "service"),
-				services.NewTaskService(taskRepo, schedulerRepo, view, expirationTime),
+				services.NewTaskService(taskRepo, schedulerRepo, taskEventPublisher, view, expirationTime),
 			),
 		),
 	)
