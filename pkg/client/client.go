@@ -37,14 +37,22 @@ func NewTaskEventConsumer(redisClient *redis.Client, queueName string) *TaskEven
 	}
 }
 
-// Next gets the next task event from the queue.
+// Pops the next task event from the queue.
 //
-// To set a maximum blocking duration, use the timeout argument. A value less
-// or equal to 0 disables the timeout. The minimum supported duration is 1
-// second.
+// Two settings control its duration:
 //
-// Cancellation through the context doesn't work while the Redis client is
-// waiting for the next item, so make sure you set a timeout > 0.
+// - The context applies to this operation.
+// - The timeout applies to the underlying blocking Redis operation.
+//
+// Context cancellation can only be checked when the underlying Redis operation
+// returns. The timeout controls the interval at which it returns:
+//
+//   - timeout <= 0: blocks until an element can be popped from the list or an
+//     error occurs.
+//   - timeout > 0: blocks until an element can be popped from the list, or an
+//     error occurs, or the timeout has been reached, with a minimum of 1 second.
+//
+// If you set a deadline on the context, you should set a timeout > 0.
 func (c TaskEventConsumer) Next(ctx context.Context, timeout time.Duration) (*TaskEvent, error) {
 	for {
 		if err := ctx.Err(); err != nil {
