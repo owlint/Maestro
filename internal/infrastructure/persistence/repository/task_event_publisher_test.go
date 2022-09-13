@@ -11,7 +11,7 @@ import (
 	"github.com/owlint/maestro/internal/testutils"
 )
 
-func TestPublishNoEvents(t *testing.T) {
+func TestPublishNoEvent(t *testing.T) {
 	testutils.WithTestRedis(func(conn *redis.Client) {
 		taskEventPublisher := repository.NewTaskEventPublisher(conn, "test_queue")
 		err := taskEventPublisher.Publish(context.Background())
