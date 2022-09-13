@@ -3,12 +3,14 @@ module github.com/owlint/maestro
 go 1.18
 
 require (
+	github.com/brianvoe/gofakeit/v6 v6.18.0
 	github.com/bsm/redislock v0.8.0
 	github.com/go-kit/kit v0.12.0
 	github.com/go-kit/log v0.2.1
 	github.com/go-redis/redis/v9 v9.0.0-beta.2
 	github.com/google/uuid v1.3.0
 	github.com/julienschmidt/httprouter v1.3.0
+	github.com/owlint/go-env v1.1.0
 	github.com/prometheus/client_golang v1.13.0
 	github.com/stretchr/testify v1.7.1
 	google.golang.org/protobuf v1.28.1
