@@ -25,10 +25,16 @@ const (
 )
 
 type TaskEvent struct {
-	TaskID  string    `json:"task_id"`
-	OwnerID string    `json:"owner_id"`
-	State   TaskState `json:"state"`
-	Version int       `json:"version"`
+	TaskID       string    `json:"task_id"`
+	OwnerID      string    `json:"owner_id"`
+	State        TaskState `json:"state"`
+	Version      int       `json:"version"`
+	TaskQueue    string    `json:"task_queue"`
+	Timeout      int32     `json:"timeout"`
+	Retries      int32     `json:"retries"`
+	MaxRetries   int32     `json:"max_retries"`
+	NotBefore    int64     `json:"not_before"`
+	StartTimeout int32     `json:"start_timeout"`
 }
 
 // Task is a task to be executed
@@ -70,9 +76,15 @@ func NewTask(owner string, taskQueue string, payload string, timeout int32, star
 		startTimeout: startTimeout,
 		notBefore:    now,
 		events: []TaskEvent{{
-			TaskID:  taskID,
-			OwnerID: owner,
-			State:   TaskStatePending,
+			TaskID:       taskID,
+			OwnerID:      owner,
+			State:        TaskStatePending,
+			TaskQueue:    taskQueue,
+			Timeout:      timeout,
+			Retries:      0,
+			MaxRetries:   maxRetries,
+			StartTimeout: startTimeout,
+			NotBefore:    now,
 		}},
 	}
 
@@ -101,9 +113,15 @@ func NewFutureTask(owner string, taskQueue string, payload string, timeout int32
 		startTimeout: startTimeout,
 		notBefore:    notBefore,
 		events: []TaskEvent{{
-			TaskID:  taskID,
-			OwnerID: owner,
-			State:   TaskStatePending,
+			TaskID:       taskID,
+			OwnerID:      owner,
+			State:        TaskStatePending,
+			TaskQueue:    taskQueue,
+			Timeout:      timeout,
+			Retries:      0,
+			MaxRetries:   maxRetries,
+			StartTimeout: startTimeout,
+			NotBefore:    notBefore,
 		}},
 	}, nil
 }
@@ -223,10 +241,16 @@ func (t *Task) changeState(newState TaskState) {
 	t.updated()
 
 	t.events = append(t.events, TaskEvent{
-		TaskID:  t.TaskID,
-		OwnerID: t.owner,
-		State:   t.state,
-		Version: t.version,
+		TaskID:       t.TaskID,
+		OwnerID:      t.owner,
+		State:        t.state,
+		Version:      t.version,
+		TaskQueue:    t.taskQueue,
+		Timeout:      t.timeout,
+		Retries:      t.retries,
+		MaxRetries:   t.maxRetries,
+		StartTimeout: t.startTimeout,
+		NotBefore:    t.notBefore,
 	})
 }
 
