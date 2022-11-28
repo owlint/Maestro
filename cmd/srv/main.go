@@ -8,18 +8,20 @@ import (
 	"time"
 
 	"github.com/bsm/redislock"
-	"github.com/go-kit/kit/log"
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	httptransport "github.com/go-kit/kit/transport/http"
+	"github.com/go-kit/log"
 	"github.com/julienschmidt/httprouter"
-	"github.com/owlint/maestro/infrastructure/persistance/drivers"
-	"github.com/owlint/maestro/infrastructure/persistance/repository"
-	"github.com/owlint/maestro/infrastructure/persistance/view"
-	"github.com/owlint/maestro/infrastructure/services"
-	"github.com/owlint/maestro/web/endpoint"
-	"github.com/owlint/maestro/web/transport/rest"
+	"github.com/owlint/go-env"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/owlint/maestro/internal/infrastructure/persistence/drivers"
+	"github.com/owlint/maestro/internal/infrastructure/persistence/repository"
+	"github.com/owlint/maestro/internal/infrastructure/persistence/view"
+	"github.com/owlint/maestro/internal/infrastructure/services"
+	"github.com/owlint/maestro/internal/web/endpoint"
+	"github.com/owlint/maestro/internal/web/transport/rest"
 )
 
 func main() {
@@ -39,13 +41,17 @@ func main() {
 
 	taskRepo := repository.NewTaskRepository(redisClient)
 	schedulerRepo := repository.NewSchedulerRepository(redisClient)
+
+	taskEventPublisherQueue := env.GetDefaultEnv("MAESTRO_TASK_EVENT_QUEUE", "maestro_task_event_queue")
+	taskEventPublisher := repository.NewTaskEventPublisher(redisClient, taskEventPublisherQueue)
+
 	view := view.NewTaskViewLocker(locker, view.NewTaskView(redisClient, schedulerRepo))
 	taskService := services.NewTaskServiceInstrumenter(stateCount,
 		services.NewTaskServiceLocker(
 			locker,
 			services.NewTaskServiceLogger(
 				log.With(logger, "layer", "service"),
-				services.NewTaskService(taskRepo, schedulerRepo, view, expirationTime),
+				services.NewTaskService(taskRepo, schedulerRepo, taskEventPublisher, view, expirationTime),
 			),
 		),
 	)
@@ -54,18 +60,21 @@ func main() {
 	go func() {
 		logger := log.With(log.NewJSONLogger(os.Stderr), "layer", "timeouter")
 		for {
-			logger.Log("msg", "running")
+			_ = logger.Log("msg", "running")
+
 			now := time.Now()
 			err := taskTimeoutService.TimeoutTasks()
+
 			if err != nil {
-				logger.Log(
+				_ = logger.Log(
 					"err", fmt.Sprintf("Error while setting timeouts : %s", err.Error()),
 				)
 			} else {
-				logger.Log(
+				_ = logger.Log(
 					"msg", "timeouter finished", "took", time.Since(now),
 				)
 			}
+
 			time.Sleep(1 * time.Second)
 		}
 	}()
@@ -183,7 +192,13 @@ func main() {
 	router.Handler("POST", "/api/queue/results/consume", queueConsumeTaskHandler)
 	router.Handler("GET", "/api/healthcheck", healthcheckHandler)
 	router.Handler("GET", "/metrics", promhttp.Handler())
-	logger.Log(http.ListenAndServe(":8080", router))
+
+	srv := http.Server{
+		Addr:              ":8080",
+		Handler:           router,
+		ReadHeaderTimeout: time.Minute,
+	}
+	_ = logger.Log(srv.ListenAndServe())
 }
 
 func getResultExpirationTime() int {
