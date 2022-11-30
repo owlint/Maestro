@@ -45,7 +45,12 @@ func QueueNextEndpoint(
 
 			next, err = stateView.ByID(ctx, next.TaskID)
 			if err != nil {
-				return TaskStateResponse{nil, err.Error()}, err
+				switch err.(type) {
+				case taskerrors.NotFoundError:
+					continue
+				default:
+					return TaskStateResponse{nil, err.Error()}, err
+				}
 			}
 
 			if next.State() == domain.TaskStatePending {
