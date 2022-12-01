@@ -147,7 +147,7 @@ func main() {
 	)
 	queueNextTaskHandler := httptransport.NewServer(
 		endpoint.EnpointLoggingMiddleware(log.With(endpointLogger, "task", "next"))(
-			endpoint.QueueNextEndpoint(taskService, view),
+			endpoint.QueueNextEndpoint(taskService, view, log.With(endpointLogger, "task", "next")),
 		),
 		rest.DecodeQueueNextRequest,
 		rest.EncodeJSONResponse,
