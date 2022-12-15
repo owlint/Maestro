@@ -5,6 +5,7 @@ import (
 
 	"github.com/bsm/redislock"
 	"github.com/go-kit/kit/endpoint"
+	"github.com/go-kit/kit/log"
 	"github.com/owlint/maestro/internal/domain"
 	taskerrors "github.com/owlint/maestro/internal/errors"
 	"github.com/owlint/maestro/internal/infrastructure/persistence/view"
@@ -20,6 +21,7 @@ type QueueNextRequest struct {
 func QueueNextEndpoint(
 	svc services.TaskService,
 	stateView view.TaskView,
+	logger log.Logger,
 ) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req, err := unmarshalQueueNextRequest(request)
@@ -45,7 +47,13 @@ func QueueNextEndpoint(
 
 			next, err = stateView.ByID(ctx, next.TaskID)
 			if err != nil {
-				return TaskStateResponse{nil, err.Error()}, err
+				switch err.(type) {
+				case taskerrors.NotFoundError:
+					logger.Log("msg", "Next task doesn't exist anymore. Ignoring it.")
+					continue
+				default:
+					return TaskStateResponse{nil, err.Error()}, err
+				}
 			}
 
 			if next.State() == domain.TaskStatePending {
