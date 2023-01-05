@@ -20,7 +20,6 @@ type Notifier interface {
 type HTTPNotifier struct {
 	logger  log.Logger
 	client  http.Client
-	timeout time.Duration
 	retries uint
 }
 
@@ -47,9 +46,12 @@ func (n *HTTPNotifier) Notify(task domain.Task) error {
 	}
 
 	buf := new(bytes.Buffer)
-	json.NewEncoder(buf).Encode(domain.TaskNotification{
+	err := json.NewEncoder(buf).Encode(domain.TaskNotification{
 		TaskID: taskID,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to serialize notification body: %w", err)
+	}
 
 	origReq, err := http.NewRequest(
 		http.MethodPost,
@@ -72,7 +74,7 @@ func (n *HTTPNotifier) Notify(task domain.Task) error {
 			req := origReq.Clone(origReq.Context())
 			req.Body = io.NopCloser(bytes.NewReader(buf.Bytes()))
 
-			level.Debug(logger).Log(
+			_ = level.Debug(logger).Log(
 				"msg", fmt.Sprintf(
 					"Notifying termination of %s to %s",
 					taskID, callbackURL,
@@ -82,7 +84,7 @@ func (n *HTTPNotifier) Notify(task domain.Task) error {
 
 			resp, err := n.client.Do(req)
 			if err != nil {
-				level.Debug(logger).Log(
+				_ = level.Debug(logger).Log(
 					"msg", fmt.Sprintf(
 						"Error in post request to %s: %v",
 						callbackURL, err,
@@ -96,7 +98,7 @@ func (n *HTTPNotifier) Notify(task domain.Task) error {
 				return
 			}
 
-			level.Debug(logger).Log(
+			_ = level.Debug(logger).Log(
 				"msg", fmt.Sprintf(
 					"Invalid response from %s: status %s",
 					callbackURL, resp.Status,
@@ -104,7 +106,7 @@ func (n *HTTPNotifier) Notify(task domain.Task) error {
 			)
 		}
 
-		level.Warn(logger).Log(
+		_ = level.Warn(logger).Log(
 			"msg", fmt.Sprintf(
 				"Could not notify %s of task %s state change after %d retries",
 				callbackURL, taskID, n.retries,

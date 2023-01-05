@@ -65,18 +65,18 @@ func (s NotificationTestServer) URL() string {
 	return s.server.URL
 }
 
-func (h *NotificationTestServer) AddHandlerFunc(handler http.HandlerFunc) {
-	h.handlers <- http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (s *NotificationTestServer) AddHandlerFunc(handler http.HandlerFunc) {
+	s.handlers <- http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
 		handler(w, r)
 	})
 }
 
-func (h *NotificationTestServer) AddNotificationHandlerFunc(
+func (s *NotificationTestServer) AddNotificationHandlerFunc(
 	handler func(http.ResponseWriter, domain.TaskNotification),
 ) {
-	h.handlers <- http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s.handlers <- http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 
 		var n domain.TaskNotification

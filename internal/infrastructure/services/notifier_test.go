@@ -121,7 +121,7 @@ func TestHTTPNotifierAsync(t *testing.T) {
 	tm := time.Now()
 	err = notifier.Notify(*task)
 	assert.NoError(t, err)
-	assert.Less(t, time.Now().Sub(tm), 1*time.Second)
+	assert.Less(t, time.Since(tm), time.Second)
 }
 
 func TestHTTPNotifierRetryAfterTimeout(t *testing.T) {
