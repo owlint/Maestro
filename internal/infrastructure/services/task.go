@@ -90,9 +90,26 @@ func (s TaskServiceImpl) Create(
 	var task *domain.Task
 	var err error
 	if notBefore == 0 {
-		task, err = domain.NewTask(owner, taskQueue, payload, timeout, startTimeout, retry, "")
+		task, err = domain.NewTask(
+			owner,
+			taskQueue,
+			payload,
+			timeout,
+			startTimeout,
+			retry,
+			callbackURL,
+		)
 	} else {
-		task, err = domain.NewFutureTask(owner, taskQueue, payload, timeout, retry, startTimeout, notBefore, "")
+		task, err = domain.NewFutureTask(
+			owner,
+			taskQueue,
+			payload,
+			timeout,
+			retry,
+			startTimeout,
+			notBefore,
+			callbackURL,
+		)
 	}
 	if err != nil {
 		return "", err

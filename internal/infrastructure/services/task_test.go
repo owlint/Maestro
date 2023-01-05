@@ -67,6 +67,8 @@ func TestCreate(t *testing.T) {
 				NotBefore:    task.NotBefore(),
 			},
 		}, eventPublisher.Published())
+
+		assert.Equal(t, "http://localhost:8080/callback", task.CallbackURL())
 	})
 }
 
