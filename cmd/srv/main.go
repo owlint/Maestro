@@ -24,6 +24,15 @@ import (
 	"github.com/owlint/maestro/internal/web/transport/rest"
 )
 
+func getDefaultDurationFromEnv(name string, fallback string) time.Duration {
+	v := env.GetDefaultEnv(name, fallback)
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		panic(err)
+	}
+	return d
+}
+
 func main() {
 	expirationTime := getResultExpirationTime()
 	redisClient := drivers.ConnectRedis(getRedisConnectionOptions())
@@ -46,12 +55,24 @@ func main() {
 	taskEventPublisher := repository.NewTaskEventPublisher(redisClient, taskEventPublisherQueue)
 
 	view := view.NewTaskViewLocker(locker, view.NewTaskView(redisClient, schedulerRepo))
+	notifier := services.NewHTTPNotifier(
+		logger,
+		getDefaultDurationFromEnv("MAESTRO_NOTIFIER_TIMEOUT", "10s"),
+		uint(env.GetDefaultIntFromEnv("MAESTRO_NOTIFIER_RETRIES", "3")),
+	)
 	taskService := services.NewTaskServiceInstrumenter(stateCount,
 		services.NewTaskServiceLocker(
 			locker,
 			services.NewTaskServiceLogger(
 				log.With(logger, "layer", "service"),
-				services.NewTaskService(taskRepo, schedulerRepo, taskEventPublisher, view, expirationTime),
+				services.NewTaskService(
+					taskRepo,
+					schedulerRepo,
+					taskEventPublisher,
+					notifier,
+					view,
+					expirationTime,
+				),
 			),
 		),
 	)

@@ -35,6 +35,7 @@ func (r TaskRepository) Save(ctx context.Context, t domain.Task) error {
 		"updated_at":   t.UpdatedAt(),
 		"not_before":   t.NotBefore(),
 		"version":      t.Version(),
+		"callback_url": t.CallbackURL(),
 	}
 	if t.State() == domain.TaskStateCompleted {
 		result, _ := t.Result()

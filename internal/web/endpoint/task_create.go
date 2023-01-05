@@ -19,6 +19,7 @@ type CreateTaskRequest struct {
 	StartTimeout int32  `json:"start_timeout,omitempty"`
 	Payload      string `json:"payload"`
 	NotBefore    int64  `json:"not_before"`
+	CallbackURL  string `json:"callback_url"`
 }
 
 // CreateTaskResponse is the response of a task creation
@@ -38,7 +39,16 @@ func CreateTaskEndpoint(svc services.TaskService) endpoint.Endpoint {
 		if runTimeout == 0 {
 			runTimeout = req.Timeout
 		}
-		taskID, err := svc.Create(req.Owner, req.Queue, runTimeout, req.Retries, req.Payload, req.NotBefore, req.StartTimeout)
+		taskID, err := svc.Create(
+			req.Owner,
+			req.Queue,
+			runTimeout,
+			req.Retries,
+			req.Payload,
+			req.NotBefore,
+			req.StartTimeout,
+			req.CallbackURL,
+		)
 		if err != nil {
 			return CreateTaskResponse{"", err.Error()}, err
 		}
@@ -78,7 +88,16 @@ func CreateTaskListEndpoint(svc services.TaskService) endpoint.Endpoint {
 			if runTimeout == 0 {
 				runTimeout = task.Timeout
 			}
-			taskID, err := svc.Create(task.Owner, task.Queue, runTimeout, task.Retries, task.Payload, task.NotBefore, task.StartTimeout)
+			taskID, err := svc.Create(
+				task.Owner,
+				task.Queue,
+				runTimeout,
+				task.Retries,
+				task.Payload,
+				task.NotBefore,
+				task.StartTimeout,
+				task.CallbackURL,
+			)
 			if err != nil {
 				return CreateTaskResponse{"", err.Error()}, err
 			}
