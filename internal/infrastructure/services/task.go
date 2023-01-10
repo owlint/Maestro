@@ -23,7 +23,16 @@ type TaskEventPublisher interface {
 
 // TaskService is a service to manage tasks
 type TaskService interface {
-	Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error)
+	Create(
+		owner string,
+		taskQueue string,
+		timeout int32,
+		retry int32,
+		payload string,
+		notBefore int64,
+		startTimeout int32,
+		callbackURL string,
+	) (string, error)
 	Select(taskID string) error
 	Fail(taskID string) error
 	Cancel(taskID string) error
@@ -38,6 +47,7 @@ type TaskServiceImpl struct {
 	taskRepo         repository.TaskRepository
 	schedulerRepo    repository.SchedulerRepository
 	eventPublisher   TaskEventPublisher
+	notifier         Notifier
 	view             view.TaskView
 	resultExpiration int
 }
@@ -47,6 +57,7 @@ func NewTaskService(
 	taskRepo repository.TaskRepository,
 	schedulerRepo repository.SchedulerRepository,
 	eventPublisher TaskEventPublisher,
+	notifier Notifier,
 	view view.TaskView,
 	resultExpiration int,
 ) TaskServiceImpl {
@@ -54,13 +65,23 @@ func NewTaskService(
 		taskRepo:         taskRepo,
 		schedulerRepo:    schedulerRepo,
 		eventPublisher:   eventPublisher,
+		notifier:         notifier,
 		view:             view,
 		resultExpiration: resultExpiration,
 	}
 }
 
 // Create creates a new task from given arguments
-func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
+func (s TaskServiceImpl) Create(
+	owner string,
+	taskQueue string,
+	timeout int32,
+	retry int32,
+	payload string,
+	notBefore int64,
+	startTimeout int32,
+	callbackURL string,
+) (string, error) {
 	ctx := context.Background()
 	if notBefore < 0 {
 		return "", errors.New("NotBefore must be >= 0")
@@ -69,12 +90,29 @@ func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, r
 	var task *domain.Task
 	var err error
 	if notBefore == 0 {
-		task = domain.NewTask(owner, taskQueue, payload, timeout, startTimeout, retry)
+		task, err = domain.NewTask(
+			owner,
+			taskQueue,
+			payload,
+			timeout,
+			startTimeout,
+			retry,
+			callbackURL,
+		)
 	} else {
-		task, err = domain.NewFutureTask(owner, taskQueue, payload, timeout, retry, startTimeout, notBefore)
-		if err != nil {
-			return "", err
-		}
+		task, err = domain.NewFutureTask(
+			owner,
+			taskQueue,
+			payload,
+			timeout,
+			retry,
+			startTimeout,
+			notBefore,
+			callbackURL,
+		)
+	}
+	if err != nil {
+		return "", err
 	}
 
 	err = s.taskRepo.Save(ctx, *task)
@@ -176,6 +214,13 @@ func (s TaskServiceImpl) Fail(taskID string) error {
 		return err
 	}
 
+	if task.State() == domain.TaskStateFailed {
+		err = s.notifier.Notify(*task)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
@@ -219,6 +264,13 @@ func (s TaskServiceImpl) Timeout(taskID string) error {
 	events := task.CollectEvents()
 	if err := s.eventPublisher.Publish(ctx, events...); err != nil {
 		return err
+	}
+
+	if task.State() == domain.TaskStateTimedout {
+		err = s.notifier.Notify(*task)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = s.taskRepo.Save(ctx, *task)
@@ -266,6 +318,11 @@ func (s TaskServiceImpl) Complete(taskID string, result string) error {
 		return err
 	}
 
+	err = s.notifier.Notify(*task)
+	if err != nil {
+		return err
+	}
+
 	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
@@ -298,6 +355,11 @@ func (s TaskServiceImpl) Cancel(taskID string) error {
 
 	events := task.CollectEvents()
 	if err := s.eventPublisher.Publish(ctx, events...); err != nil {
+		return err
+	}
+
+	err = s.notifier.Notify(*task)
+	if err != nil {
 		return err
 	}
 
@@ -356,8 +418,26 @@ func NewTaskServiceLogger(logger log.Logger, next TaskService) TaskServiceLogger
 	}
 }
 
-func (l TaskServiceLogger) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
-	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
+func (l TaskServiceLogger) Create(
+	owner string,
+	taskQueue string,
+	timeout int32,
+	retry int32,
+	payload string,
+	notBefore int64,
+	startTimeout int32,
+	callbackURL string,
+) (string, error) {
+	result, err := l.next.Create(
+		owner,
+		taskQueue,
+		timeout,
+		retry,
+		payload,
+		notBefore,
+		startTimeout,
+		callbackURL,
+	)
 	defer func() {
 		_ = l.logger.Log(
 			"action", "create",
@@ -471,8 +551,26 @@ func NewTaskServiceLocker(locker *redislock.Client, next TaskService) TaskServic
 	}
 }
 
-func (l TaskServiceLocker) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
-	return l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
+func (l TaskServiceLocker) Create(
+	owner string,
+	taskQueue string,
+	timeout int32,
+	retry int32,
+	payload string,
+	notBefore int64,
+	startTimeout int32,
+	callbackURL string,
+) (string, error) {
+	return l.next.Create(
+		owner,
+		taskQueue,
+		timeout,
+		retry,
+		payload,
+		notBefore,
+		startTimeout,
+		callbackURL,
+	)
 }
 
 func (l TaskServiceLocker) Select(taskID string) error {
@@ -586,8 +684,26 @@ func NewTaskServiceInstrumenter(counter *kitprometheus.Counter, next TaskService
 	}
 }
 
-func (l TaskServiceInstrumenter) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
-	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
+func (l TaskServiceInstrumenter) Create(
+	owner string,
+	taskQueue string,
+	timeout int32,
+	retry int32,
+	payload string,
+	notBefore int64,
+	startTimeout int32,
+	callbackURL string,
+) (string, error) {
+	result, err := l.next.Create(
+		owner,
+		taskQueue,
+		timeout,
+		retry,
+		payload,
+		notBefore,
+		startTimeout,
+		callbackURL,
+	)
 	defer func() {
 		lvs := []string{"state", domain.TaskStatePending.String(), "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)

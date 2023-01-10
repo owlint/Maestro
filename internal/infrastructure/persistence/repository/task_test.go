@@ -17,9 +17,16 @@ func TestSave(t *testing.T) {
 	testutils.WithTestRedis(func(redis *redis.Client) {
 		repo := TaskRepository{redis: redis}
 		queueName := uuid.New().String()
-		task := domain.NewTask("laurent", queueName, "payload", 15, 0, 1)
+		task, err := domain.NewTask(
+			"laurent",
+			queueName,
+			"payload",
+			15, 0, 1,
+			"http://localhost:8080/callback",
+		)
+		assert.NoError(t, err)
 
-		err := repo.Save(context.Background(), *task)
+		err = repo.Save(context.Background(), *task)
 		assert.Nil(t, err)
 
 		keysCmd := redis.Keys(context.Background(), fmt.Sprintf("%s-*", queueName))
@@ -47,6 +54,7 @@ func TestSave(t *testing.T) {
 			"updated_at":   strconv.FormatInt(task.UpdatedAt(), 10),
 			"not_before":   strconv.FormatInt(task.NotBefore(), 10),
 			"version":      strconv.FormatInt(0, 10),
+			"callback_url": "http://localhost:8080/callback",
 		}
 		assert.Equal(t, shouldBe, values)
 
@@ -60,9 +68,10 @@ func TestDelete(t *testing.T) {
 	testutils.WithTestRedis(func(redis *redis.Client) {
 		repo := TaskRepository{redis: redis}
 		queueName := uuid.New().String()
-		task := domain.NewTask("laurent", queueName, "payload", 15, 0, 1)
+		task, err := domain.NewTask("laurent", queueName, "payload", 15, 0, 1, "")
+		assert.NoError(t, err)
 
-		err := repo.Save(context.Background(), *task)
+		err = repo.Save(context.Background(), *task)
 		assert.Nil(t, err)
 
 		keysCmd := redis.Keys(context.Background(), fmt.Sprintf("%s-*", queueName))
@@ -85,9 +94,10 @@ func TestSetTTL(t *testing.T) {
 	testutils.WithTestRedis(func(redis *redis.Client) {
 		repo := TaskRepository{redis: redis}
 		queueName := uuid.New().String()
-		task := domain.NewTask("laurent", queueName, "payload", 15, 0, 1)
+		task, err := domain.NewTask("laurent", queueName, "payload", 15, 0, 1, "")
+		assert.NoError(t, err)
 
-		err := repo.Save(context.Background(), *task)
+		err = repo.Save(context.Background(), *task)
 		assert.Nil(t, err)
 
 		err = repo.SetTTL(context.Background(), task.TaskID, 10)
@@ -109,9 +119,10 @@ func TestRemoveTTL(t *testing.T) {
 	testutils.WithTestRedis(func(redis *redis.Client) {
 		repo := TaskRepository{redis: redis}
 		queueName := uuid.New().String()
-		task := domain.NewTask("laurent", queueName, "payload", 15, 0, 1)
+		task, err := domain.NewTask("laurent", queueName, "payload", 15, 0, 1, "")
+		assert.NoError(t, err)
 
-		err := repo.Save(context.Background(), *task)
+		err = repo.Save(context.Background(), *task)
 		assert.Nil(t, err)
 
 		err = repo.SetTTL(context.Background(), task.TaskID, 10)

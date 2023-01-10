@@ -44,16 +44,18 @@ func TestSchedule(t *testing.T) {
 		repo := NewSchedulerRepository(redis)
 		ctx := context.Background()
 
-		task := domain.NewTask(
+		task, err := domain.NewTask(
 			"owner",
 			"queue",
 			"payload",
 			900,
 			0,
 			3,
+			"",
 		)
+		assert.NoError(t, err)
 
-		err := repo.Schedule(ctx, task)
+		err = repo.Schedule(ctx, task)
 		assert.NoError(t, err)
 		assert.True(t, ownerScheduledWithTimestamp(ctx, t, redis, "queue", "owner", 0))
 		assert.Equal(t, int64(1), ownerQueueLen(ctx, t, redis, "queue", "owner"))
@@ -74,6 +76,7 @@ func TestSchduleNotBefore(t *testing.T) {
 			0,
 			3,
 			time.Now().Unix()+1000,
+			"",
 		)
 		assert.NoError(t, err)
 
@@ -88,16 +91,18 @@ func TestSchduleStartTimeout(t *testing.T) {
 		repo := NewSchedulerRepository(redis)
 		ctx := context.Background()
 
-		task := domain.NewTask(
+		task, err := domain.NewTask(
 			"owner",
 			"queue5",
 			"payload",
 			900,
 			1000,
 			3,
+			"",
 		)
+		assert.NoError(t, err)
 
-		err := repo.Schedule(ctx, task)
+		err = repo.Schedule(ctx, task)
 		assert.NoError(t, err)
 		assert.InDelta(t, 8200, queueSchedulerTTL(ctx, t, redis, "queue5"), 1)
 	})
@@ -108,15 +113,18 @@ func TestNextInQueue(t *testing.T) {
 		repo := NewSchedulerRepository(redis)
 		ctx := context.Background()
 
-		task := domain.NewTask(
+		task, err := domain.NewTask(
 			"owner",
 			"queue2",
 			"payload",
 			900,
 			0,
 			3,
+			"",
 		)
-		err := repo.Schedule(ctx, task)
+		assert.NoError(t, err)
+
+		err = repo.Schedule(ctx, task)
 		assert.NoError(t, err)
 
 		taskID, err := repo.NextInQueue(ctx, "queue2")
@@ -133,15 +141,18 @@ func TestNextInQueueEmptyOwner(t *testing.T) {
 		repo := NewSchedulerRepository(redis)
 		ctx := context.Background()
 
-		task := domain.NewTask(
+		task, err := domain.NewTask(
 			"owner",
 			"queue2",
 			"payload",
 			900,
 			0,
 			3,
+			"",
 		)
-		err := repo.Schedule(ctx, task)
+		assert.NoError(t, err)
+
+		err = repo.Schedule(ctx, task)
 		assert.NoError(t, err)
 
 		taskID, err := repo.NextInQueue(ctx, "queue2")
@@ -170,15 +181,18 @@ func TestUpdateSchedulerTTL(t *testing.T) {
 		repo := NewSchedulerRepository(redis)
 		ctx := context.Background()
 
-		task := domain.NewTask(
+		task, err := domain.NewTask(
 			"owner",
 			"queue3",
 			"payload",
 			900,
 			0,
 			3,
+			"",
 		)
-		err := repo.Schedule(ctx, task)
+		assert.NoError(t, err)
+
+		err = repo.Schedule(ctx, task)
 		assert.NoError(t, err)
 		time.Sleep(2 * time.Second)
 

@@ -41,9 +41,10 @@ func TestCreate(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
+		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0, "http://localhost:8080/callback")
 		assert.Nil(t, err)
 
 		exist, err := view.Exists(ctx, taskID)
@@ -66,6 +67,8 @@ func TestCreate(t *testing.T) {
 				NotBefore:    task.NotBefore(),
 			},
 		}, eventPublisher.Published())
+
+		assert.Equal(t, "http://localhost:8080/callback", task.CallbackURL())
 	})
 }
 
@@ -77,9 +80,10 @@ func TestCreateTTL(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 5)
+		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 5, "")
 		assert.Nil(t, err)
 
 		ttlCmd := redis.TTL(ctx, fmt.Sprintf("test-%s", taskID))
@@ -113,10 +117,11 @@ func TestCreateFutureTTL(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
 		when := time.Now().Unix() + 5
-		taskID, err := service.Create("owner", "test", 3, 5, "", when, 5)
+		taskID, err := service.Create("owner", "test", 3, 5, "", when, 5, "")
 		assert.Nil(t, err)
 
 		ttlCmd := redis.TTL(ctx, fmt.Sprintf("test-%s", taskID))
@@ -150,9 +155,10 @@ func TestSelect(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
+		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0, "")
 		assert.Nil(t, err)
 
 		err = service.Select(taskID)
@@ -198,9 +204,10 @@ func TestSelectTTL(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 5)
+		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 5, "")
 		assert.Nil(t, err)
 
 		err = service.Select(taskID)
@@ -248,7 +255,8 @@ func TestSelectUnknown(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
 		err := service.Select(uuid.New().String())
 		assert.NotNil(t, err)
@@ -265,9 +273,10 @@ func TestComplete(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
+		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0, "")
 		assert.Nil(t, err)
 
 		err = service.Select(taskID)
@@ -321,6 +330,8 @@ func TestComplete(t *testing.T) {
 				NotBefore:    task.NotBefore(),
 			},
 		}, eventPublisher.Published())
+
+		assert.True(t, notifier.Notified(taskID))
 	})
 }
 
@@ -332,9 +343,10 @@ func TestCompleteExpiration(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 800)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 800)
 
-		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
+		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0, "")
 		assert.Nil(t, err)
 
 		err = service.Select(taskID)
@@ -387,6 +399,8 @@ func TestCompleteExpiration(t *testing.T) {
 				NotBefore:    task.NotBefore(),
 			},
 		}, eventPublisher.Published())
+
+		assert.True(t, notifier.Notified(taskID))
 	})
 }
 
@@ -396,7 +410,8 @@ func TestCompleteUnknown(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
 		err := service.Complete(uuid.New().String(), "")
 		assert.NotNil(t, err)
@@ -413,9 +428,10 @@ func TestCancel(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0)
+		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0, "")
 		assert.Nil(t, err)
 
 		err = service.Select(taskID)
@@ -469,6 +485,8 @@ func TestCancel(t *testing.T) {
 				NotBefore:    task.NotBefore(),
 			},
 		}, eventPublisher.Published())
+
+		assert.True(t, notifier.Notified(taskID))
 	})
 }
 
@@ -478,7 +496,8 @@ func TestCancelUnknown(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
 		err := service.Cancel(uuid.New().String())
 		assert.NotNil(t, err)
@@ -495,9 +514,10 @@ func TestFail(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
+		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
 		err = service.Select(taskID)
@@ -548,6 +568,8 @@ func TestFail(t *testing.T) {
 				NotBefore:    task.NotBefore(),
 			},
 		}, eventPublisher.Published())
+
+		assert.False(t, notifier.Notified(taskID))
 	})
 }
 
@@ -559,9 +581,10 @@ func TestFailTTL(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5)
+		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5, "")
 		assert.Nil(t, err)
 
 		err = service.Select(taskID)
@@ -616,6 +639,8 @@ func TestFailTTL(t *testing.T) {
 				NotBefore:    task.NotBefore(),
 			},
 		}, eventPublisher.Published())
+
+		assert.False(t, notifier.Notified(taskID))
 	})
 }
 
@@ -627,9 +652,10 @@ func TestFailed(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
+		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
 		err = service.Select(taskID)
@@ -713,6 +739,8 @@ func TestFailed(t *testing.T) {
 				NotBefore:    task.NotBefore(),
 			},
 		}, eventPublisher.Published())
+
+		assert.True(t, notifier.Notified(taskID))
 	})
 }
 
@@ -722,7 +750,8 @@ func TestFailedUnknown(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
 		err := service.Fail(uuid.New().String())
 		assert.NotNil(t, err)
@@ -739,9 +768,10 @@ func TestTimeout(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
+		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
 		err = service.Select(taskID)
@@ -792,6 +822,8 @@ func TestTimeout(t *testing.T) {
 				NotBefore:    task.NotBefore(),
 			},
 		}, eventPublisher.Published())
+
+		assert.False(t, notifier.Notified(taskID))
 	})
 }
 
@@ -803,9 +835,10 @@ func TestTimeoutTTL(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5)
+		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5, "")
 		assert.Nil(t, err)
 
 		err = service.Select(taskID)
@@ -860,6 +893,8 @@ func TestTimeoutTTL(t *testing.T) {
 				NotBefore:    task.NotBefore(),
 			},
 		}, eventPublisher.Published())
+
+		assert.False(t, notifier.Notified(taskID))
 	})
 }
 
@@ -871,9 +906,10 @@ func TestTimeouted(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
-		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0)
+		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
 		err = service.Select(taskID)
@@ -958,6 +994,8 @@ func TestTimeouted(t *testing.T) {
 				NotBefore:    task.NotBefore(),
 			},
 		}, eventPublisher.Published())
+
+		assert.True(t, notifier.Notified(taskID))
 	})
 }
 
@@ -967,7 +1005,8 @@ func TestTimeoutedUnknown(t *testing.T) {
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		eventPublisher := &EventPublisherSpy{}
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, view, 300)
+		notifier := testutils.NewNotifierSpy()
+		service := NewTaskService(taskRepo, schedulerRepo, eventPublisher, notifier, view, 300)
 
 		err := service.Timeout(uuid.New().String())
 		assert.NotNil(t, err)

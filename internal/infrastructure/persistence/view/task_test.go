@@ -19,9 +19,16 @@ func TestByID(t *testing.T) {
 		view := TaskViewImpl{redis: redis}
 		owner := uuid.New().String()
 		queue := uuid.New().String()
-		task := domain.NewTask(owner, queue, "payload", 10, 0, 2)
+		task, err := domain.NewTask(
+			owner,
+			queue,
+			"payload",
+			10, 0, 2,
+			"http://localhost:8080/callback",
+		)
+		assert.NoError(t, err)
 
-		err := repo.Save(context.Background(), *task)
+		err = repo.Save(context.Background(), *task)
 		assert.Nil(t, err)
 
 		reloaded, err := view.ByID(context.Background(), task.TaskID)
@@ -33,6 +40,7 @@ func TestByID(t *testing.T) {
 		assert.Equal(t, task.UpdatedAt(), reloaded.UpdatedAt())
 		assert.Equal(t, task.NotBefore(), reloaded.NotBefore())
 		assert.Equal(t, task.Owner(), reloaded.Owner())
+		assert.Equal(t, task.CallbackURL(), reloaded.CallbackURL())
 	})
 }
 
@@ -42,10 +50,12 @@ func TestInQueue(t *testing.T) {
 		view := TaskViewImpl{redis: redis}
 		owner := uuid.New().String()
 		queue := uuid.New().String()
-		task1 := domain.NewTask(owner, queue, "payload", 10, 0, 2)
-		task2 := domain.NewTask(owner, queue, "payload", 10, 0, 2)
+		task1, err := domain.NewTask(owner, queue, "payload", 10, 0, 2, "")
+		assert.NoError(t, err)
+		task2, err := domain.NewTask(owner, queue, "payload", 10, 0, 2, "")
+		assert.NoError(t, err)
 
-		err := repo.Save(context.Background(), *task1)
+		err = repo.Save(context.Background(), *task1)
 		assert.Nil(t, err)
 		err = repo.Save(context.Background(), *task2)
 		assert.Nil(t, err)
@@ -64,13 +74,15 @@ func TestQueueStats(t *testing.T) {
 		view := TaskViewImpl{redis: redis}
 		owner := uuid.New().String()
 		queue := uuid.New().String()
-		task1 := domain.NewTask(owner, queue, "payload", 10, 0, 2)
-		task2 := domain.NewTask(owner, queue, "payload", 10, 0, 2)
-
-		err := task2.Select()
+		task1, err := domain.NewTask(owner, queue, "payload", 10, 0, 2, "")
+		assert.NoError(t, err)
+		task2, err := domain.NewTask(owner, queue, "payload", 10, 0, 2, "")
 		assert.NoError(t, err)
 
-		task3, err := domain.NewFutureTask(owner, queue, "payload", 10, 2, 0, time.Now().Unix()+1000)
+		err = task2.Select()
+		assert.NoError(t, err)
+
+		task3, err := domain.NewFutureTask(owner, queue, "payload", 10, 2, 0, time.Now().Unix()+1000, "")
 		assert.Nil(t, err)
 
 		err = repo.Save(context.Background(), *task1)

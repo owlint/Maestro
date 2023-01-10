@@ -20,12 +20,13 @@ func TestTimeOutTasks(t *testing.T) {
 		taskRepo := repository.NewTaskRepository(redis)
 		schedulerRepo := repository.NewSchedulerRepository(redis)
 		taskEventPublisher := repository.NewTaskEventPublisher(redis, "test_queue")
+		notifier := testutils.NewNotifierSpy()
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, taskEventPublisher, view, 300)
+		service := NewTaskService(taskRepo, schedulerRepo, taskEventPublisher, notifier, view, 300)
 
 		taskIDs := make([]string, 0)
 		for i := 0; i < 10; i++ {
-			taskID, err := service.Create("owner", "test", 1, 0, "", 0, 0)
+			taskID, err := service.Create("owner", "test", 1, 0, "", 0, 0, "")
 			assert.Nil(t, err)
 			err = service.Select(taskID)
 			assert.Nil(t, err)
