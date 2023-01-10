@@ -59,6 +59,7 @@ func main() {
 		logger,
 		getDefaultDurationFromEnv("MAESTRO_NOTIFIER_TIMEOUT", "10s"),
 		uint(env.GetDefaultIntFromEnv("MAESTRO_NOTIFIER_RETRIES", "3")),
+		getDefaultDurationFromEnv("MAESTRO_NOTIFIER_INTERVAL", "1s"),
 	)
 	taskService := services.NewTaskServiceInstrumenter(stateCount,
 		services.NewTaskServiceLocker(

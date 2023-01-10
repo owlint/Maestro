@@ -24,6 +24,18 @@ func TestCreation(t *testing.T) {
 	assert.Equal(t, "http://localhost:8080/callback", task.CallbackURL())
 }
 
+func TestNewTaskEmptyCallbackURL(t *testing.T) {
+	task, err := NewTask(
+		"laurent",
+		"test",
+		"payload",
+		10, 0, 3,
+		"",
+	)
+	assert.NoError(t, err)
+	assert.Empty(t, task.CallbackURL())
+}
+
 func TestState(t *testing.T) {
 	task, err := NewTask("laurent", "test", "payload", 10, 0, 3, "")
 	assert.NoError(t, err)

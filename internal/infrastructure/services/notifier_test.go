@@ -1,6 +1,8 @@
 package services_test
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"testing"
@@ -12,6 +14,18 @@ import (
 	"github.com/owlint/maestro/internal/testutils"
 	"github.com/stretchr/testify/assert"
 )
+
+func tryRecvWithTimeout(
+	ch <-chan domain.TaskNotification,
+	timeout time.Duration,
+) (domain.TaskNotification, error) {
+	select {
+	case notif := <-ch:
+		return notif, nil
+	case <-time.After(timeout):
+		return domain.TaskNotification{}, errors.New("timeout exceeded")
+	}
+}
 
 func TestHTTPNotifier(t *testing.T) {
 	server := testutils.NewNotificationTestServer()
@@ -26,7 +40,12 @@ func TestHTTPNotifier(t *testing.T) {
 	}
 	server.AddNotificationHandlerFunc(handler)
 
-	notifier := services.NewHTTPNotifier(log.NewNopLogger(), time.Second, 3)
+	notifier := services.NewHTTPNotifier(
+		log.NewNopLogger(),
+		time.Second,      /* timeout */
+		3,                /* retries */
+		time.Millisecond, /* interval*/
+	)
 	task, err := domain.NewTask(
 		"laurent",
 		"test",
@@ -39,7 +58,8 @@ func TestHTTPNotifier(t *testing.T) {
 	err = notifier.Notify(*task)
 	assert.NoError(t, err)
 
-	n := <-notifs
+	n, err := tryRecvWithTimeout(notifs, 5*time.Second)
+	assert.NoError(t, err)
 	assert.Equal(t, domain.TaskNotification{
 		TaskID: task.TaskID,
 	}, n)
@@ -64,8 +84,9 @@ func TestHTTPNotifierRetryOnError(t *testing.T) {
 
 	notifier := services.NewHTTPNotifier(
 		log.NewNopLogger(),
-		time.Second,
-		retries,
+		time.Second,      /* timeout */
+		3,                /* retries */
+		time.Millisecond, /* interval*/
 	)
 	task, err := domain.NewTask(
 		"laurent",
@@ -80,7 +101,8 @@ func TestHTTPNotifierRetryOnError(t *testing.T) {
 	assert.NoError(t, err)
 
 	for i := uint(0); i <= retries; i++ {
-		n := <-notifs
+		n, err := tryRecvWithTimeout(notifs, 5*time.Second)
+		assert.NoError(t, err)
 		assert.Equal(t, domain.TaskNotification{
 			TaskID: task.TaskID,
 		}, n)
@@ -104,8 +126,9 @@ func TestHTTPNotifierAsync(t *testing.T) {
 
 	notifier := services.NewHTTPNotifier(
 		log.NewNopLogger(),
-		10*time.Second,
-		0, /* retries */
+		10*time.Second,   /* timeout */
+		0,                /* retries */
+		time.Millisecond, /* interval*/
 	)
 	task, err := domain.NewTask(
 		"laurent",
@@ -121,6 +144,7 @@ func TestHTTPNotifierAsync(t *testing.T) {
 	tm := time.Now()
 	err = notifier.Notify(*task)
 	assert.NoError(t, err)
+	fmt.Println(time.Since(tm))
 	assert.Less(t, time.Since(tm), time.Second)
 }
 
@@ -147,8 +171,9 @@ func TestHTTPNotifierRetryAfterTimeout(t *testing.T) {
 
 	notifier := services.NewHTTPNotifier(
 		log.NewNopLogger(),
-		100*time.Millisecond,
-		retries,
+		100*time.Millisecond, /* timeout */
+		retries,              /* retries */
+		time.Millisecond,     /* interval*/
 	)
 	task, err := domain.NewTask(
 		"laurent",
@@ -164,7 +189,8 @@ func TestHTTPNotifierRetryAfterTimeout(t *testing.T) {
 
 	// Retries after timeout while requests are blocked by the wait group.
 	for i := uint(0); i <= retries; i++ {
-		n := <-notifs
+		n, err := tryRecvWithTimeout(notifs, 5*time.Second)
+		assert.NoError(t, err)
 		assert.Equal(t, domain.TaskNotification{
 			TaskID: task.TaskID,
 		}, n)

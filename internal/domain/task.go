@@ -196,8 +196,8 @@ func TaskFromStringMap(data map[string]string) (*Task, error) {
 	}
 
 	callbackURL := ""
-	if s, ok := data["callback_url"]; ok {
-		callbackURL = s
+	if url, ok := data["callback_url"]; ok {
+		callbackURL = url
 	}
 
 	task := &Task{

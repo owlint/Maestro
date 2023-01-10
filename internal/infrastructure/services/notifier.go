@@ -18,23 +18,40 @@ type Notifier interface {
 }
 
 type HTTPNotifier struct {
-	logger  log.Logger
-	client  http.Client
-	retries uint
+	logger   log.Logger
+	client   http.Client
+	retries  uint
+	interval time.Duration
 }
 
 func NewHTTPNotifier(
 	logger log.Logger,
 	timeout time.Duration,
 	retries uint,
+	interval time.Duration,
 ) *HTTPNotifier {
 	return &HTTPNotifier{
 		logger: logger,
 		client: http.Client{
 			Timeout: timeout,
 		},
-		retries: retries,
+		retries:  retries,
+		interval: interval,
 	}
+}
+
+func (n *HTTPNotifier) sendNotification(req *http.Request) error {
+	resp, err := n.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("invalid response status code: %s", resp.Status)
+	}
+
+	return nil
 }
 
 func (n *HTTPNotifier) Notify(task domain.Task) error {
@@ -82,34 +99,24 @@ func (n *HTTPNotifier) Notify(task domain.Task) error {
 				"retry", i,
 			)
 
-			resp, err := n.client.Do(req)
-			if err != nil {
+			if err := n.sendNotification(req); err != nil {
 				_ = level.Debug(logger).Log(
 					"msg", fmt.Sprintf(
-						"Error in post request to %s: %v",
-						callbackURL, err,
+						"Error notifying termination of %s to %s: %v",
+						taskID, callbackURL, err,
 					),
 				)
+				time.Sleep(n.interval)
 				continue
 			}
-			resp.Body.Close()
 
-			if resp.StatusCode == http.StatusOK {
-				return
-			}
-
-			_ = level.Debug(logger).Log(
-				"msg", fmt.Sprintf(
-					"Invalid response from %s: status %s",
-					callbackURL, resp.Status,
-				),
-			)
+			return
 		}
 
 		_ = level.Warn(logger).Log(
 			"msg", fmt.Sprintf(
-				"Could not notify %s of task %s state change after %d retries",
-				callbackURL, taskID, n.retries,
+				"Could not notify termination of %s to %s after %d retries",
+				taskID, callbackURL, n.retries,
 			),
 		)
 	}()
