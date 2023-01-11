@@ -6,7 +6,7 @@ on:
       - '*'
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
@@ -25,15 +25,34 @@ jobs:
       - name: Test
         run: go test -v ./...
 
-      - uses: mr-smithers-excellent/docker-build-push@v5
-        if: github.ref == 'refs/heads/main'
-        name: Build & push Docker image
+      - name: Stop services
+        run: make docker.stop
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name != 'pull_request' && contains(fromJSON('["main", "staging"]'), github.ref_name)
+    steps: 
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
         with:
-          image: owlint/maestro
-          tags: latest
-          registry: docker.io
+          images: owlint/maestro
+          tags: |
+            # https://github.com/docker/metadata-action#tags-input
+            type=ref,event=branch
+            # set latest tag for main branch
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Stop services
-        run: make docker.stop
+      - name: Build and push
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
