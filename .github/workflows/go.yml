@@ -38,6 +38,11 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: owlint/maestro
+          tags: |
+            # https://github.com/docker/metadata-action#tags-input
+            type=ref,event=branch
+            # set latest tag for main branch
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
 
       - name: Login to DockerHub
         uses: docker/login-action@v2
