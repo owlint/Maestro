@@ -10,6 +10,7 @@ import (
 	"github.com/bsm/redislock"
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/owlint/maestro/internal/domain"
 
@@ -44,6 +45,7 @@ type TaskService interface {
 
 // TaskServiceImpl is an implementation of TaskService
 type TaskServiceImpl struct {
+	logger           log.Logger
 	taskRepo         repository.TaskRepository
 	schedulerRepo    repository.SchedulerRepository
 	eventPublisher   TaskEventPublisher
@@ -54,6 +56,7 @@ type TaskServiceImpl struct {
 
 // NewTaskService creates a new TaskService
 func NewTaskService(
+	logger log.Logger,
 	taskRepo repository.TaskRepository,
 	schedulerRepo repository.SchedulerRepository,
 	eventPublisher TaskEventPublisher,
@@ -214,19 +217,20 @@ func (s TaskServiceImpl) Fail(taskID string) error {
 		return err
 	}
 
-	if task.State() == domain.TaskStateFailed {
-		err = s.notifier.Notify(*task)
-		if err != nil {
-			return err
-		}
-	}
-
 	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
 	}
 
 	if task.State() == domain.TaskStateFailed {
+		err = s.notifier.Notify(*task)
+		if err != nil {
+			_ = level.Error(s.logger).Log(
+				"msg", "Could not send task notification",
+				"err", err.Error(),
+			)
+		}
+
 		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 	} else if task.StartTimeout() > 0 {
 		err = s.schedulerRepo.Schedule(ctx, task)
@@ -266,19 +270,20 @@ func (s TaskServiceImpl) Timeout(taskID string) error {
 		return err
 	}
 
-	if task.State() == domain.TaskStateTimedout {
-		err = s.notifier.Notify(*task)
-		if err != nil {
-			return err
-		}
-	}
-
 	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
 	}
 
 	if task.State() == domain.TaskStateTimedout {
+		err = s.notifier.Notify(*task)
+		if err != nil {
+			_ = level.Error(s.logger).Log(
+				"msg", "Could not send task notification",
+				"err", err.Error(),
+			)
+		}
+
 		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 	} else if task.StartTimeout() > 0 {
 		err = s.schedulerRepo.Schedule(ctx, task)
@@ -318,14 +323,17 @@ func (s TaskServiceImpl) Complete(taskID string, result string) error {
 		return err
 	}
 
-	err = s.notifier.Notify(*task)
+	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
 	}
 
-	err = s.taskRepo.Save(ctx, *task)
+	err = s.notifier.Notify(*task)
 	if err != nil {
-		return err
+		_ = level.Error(s.logger).Log(
+			"msg", "Could not send task notification",
+			"err", err.Error(),
+		)
 	}
 
 	return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
@@ -358,14 +366,17 @@ func (s TaskServiceImpl) Cancel(taskID string) error {
 		return err
 	}
 
-	err = s.notifier.Notify(*task)
+	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
 	}
 
-	err = s.taskRepo.Save(ctx, *task)
+	err = s.notifier.Notify(*task)
 	if err != nil {
-		return err
+		_ = level.Error(s.logger).Log(
+			"msg", "Could not send task notification",
+			"err", err.Error(),
+		)
 	}
 
 	return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)

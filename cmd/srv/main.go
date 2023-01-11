@@ -67,6 +67,7 @@ func main() {
 			services.NewTaskServiceLogger(
 				log.With(logger, "layer", "service"),
 				services.NewTaskService(
+					log.With(logger, "layer", "service"),
 					taskRepo,
 					schedulerRepo,
 					taskEventPublisher,

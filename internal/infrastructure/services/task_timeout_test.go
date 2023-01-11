@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/log"
 	"github.com/go-redis/redis/v9"
 	"github.com/owlint/maestro/internal/domain"
 	"github.com/owlint/maestro/internal/infrastructure/persistence/repository"
@@ -22,7 +23,7 @@ func TestTimeOutTasks(t *testing.T) {
 		taskEventPublisher := repository.NewTaskEventPublisher(redis, "test_queue")
 		notifier := testutils.NewNotifierSpy()
 		view := view.NewTaskView(redis, schedulerRepo)
-		service := NewTaskService(taskRepo, schedulerRepo, taskEventPublisher, notifier, view, 300)
+		service := NewTaskService(log.NewNopLogger(), taskRepo, schedulerRepo, taskEventPublisher, notifier, view, 300)
 
 		taskIDs := make([]string, 0)
 		for i := 0; i < 10; i++ {
