@@ -33,6 +33,8 @@ jobs:
     needs: test
     if: github.event_name != 'pull_request' && contains(fromJSON('["main", "staging"]'), github.ref_name)
     steps: 
+      - uses: actions/checkout@v3
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v4
