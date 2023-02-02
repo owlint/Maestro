@@ -280,6 +280,10 @@ func TestComplete(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0, "")
 		assert.Nil(t, err)
 
+		scheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
+		assert.NoError(t, err)
+		assert.Equal(t, taskID, *scheduledTaskID)
+
 		err = service.Select(taskID)
 		assert.NoError(t, err)
 
@@ -333,6 +337,10 @@ func TestComplete(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.True(t, notifier.Notified(taskID))
+
+		scheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
+		assert.NoError(t, err)
+		assert.Nil(t, scheduledTaskID)
 	})
 }
 
@@ -349,6 +357,10 @@ func TestCompleteExpiration(t *testing.T) {
 
 		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0, "")
 		assert.Nil(t, err)
+
+		scheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
+		assert.NoError(t, err)
+		assert.Equal(t, taskID, *scheduledTaskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -402,6 +414,10 @@ func TestCompleteExpiration(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.True(t, notifier.Notified(taskID))
+
+		scheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
+		assert.NoError(t, err)
+		assert.Nil(t, scheduledTaskID)
 	})
 }
 
@@ -418,6 +434,10 @@ func TestCompleteUnknown(t *testing.T) {
 		assert.NotNil(t, err)
 
 		assert.Empty(t, eventPublisher.Published())
+
+		scheduledTaskID, err := schedulerRepo.NextInQueue(context.Background(), "test")
+		assert.NoError(t, err)
+		assert.Nil(t, scheduledTaskID)
 	})
 }
 
@@ -434,6 +454,10 @@ func TestCancel(t *testing.T) {
 
 		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0, "")
 		assert.Nil(t, err)
+
+		scheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
+		assert.NoError(t, err)
+		assert.Equal(t, taskID, *scheduledTaskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -488,6 +512,10 @@ func TestCancel(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.True(t, notifier.Notified(taskID))
+
+		scheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
+		assert.NoError(t, err)
+		assert.Nil(t, scheduledTaskID)
 	})
 }
 
@@ -504,6 +532,10 @@ func TestCancelUnknown(t *testing.T) {
 		assert.NotNil(t, err)
 
 		assert.Empty(t, eventPublisher.Published())
+
+		scheduledTaskID, err := schedulerRepo.NextInQueue(context.Background(), "test")
+		assert.NoError(t, err)
+		assert.Nil(t, scheduledTaskID)
 	})
 }
 
@@ -521,9 +553,9 @@ func TestFail(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
-		sheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -580,9 +612,9 @@ func TestFail(t *testing.T) {
 
 		assert.False(t, notifier.Notified(taskID))
 
-		sheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 	})
 }
 
@@ -600,9 +632,9 @@ func TestFailWithStartTimeout(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5, "")
 		assert.Nil(t, err)
 
-		sheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -659,9 +691,9 @@ func TestFailWithStartTimeout(t *testing.T) {
 
 		assert.False(t, notifier.Notified(taskID))
 
-		sheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 	})
 }
 
@@ -679,9 +711,9 @@ func TestFailed(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
-		sheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -689,9 +721,9 @@ func TestFailed(t *testing.T) {
 		err = service.Fail(taskID)
 		assert.NoError(t, err)
 
-		sheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -771,9 +803,9 @@ func TestFailed(t *testing.T) {
 
 		assert.True(t, notifier.Notified(taskID))
 
-		sheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Nil(t, sheduledTaskID)
+		assert.Nil(t, scheduledTaskID)
 	})
 }
 
@@ -790,6 +822,10 @@ func TestFailedUnknown(t *testing.T) {
 		assert.NotNil(t, err)
 
 		assert.Empty(t, eventPublisher.Published())
+
+		scheduledTaskID, err := schedulerRepo.NextInQueue(context.Background(), "test")
+		assert.NoError(t, err)
+		assert.Nil(t, scheduledTaskID)
 	})
 }
 
@@ -807,9 +843,9 @@ func TestTimeout(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
-		sheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -866,9 +902,9 @@ func TestTimeout(t *testing.T) {
 
 		assert.False(t, notifier.Notified(taskID))
 
-		sheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 	})
 }
 
@@ -886,9 +922,9 @@ func TestTimeoutWithStartTimeout(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5, "")
 		assert.Nil(t, err)
 
-		sheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -945,9 +981,9 @@ func TestTimeoutWithStartTimeout(t *testing.T) {
 
 		assert.False(t, notifier.Notified(taskID))
 
-		sheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 	})
 }
 
@@ -965,9 +1001,9 @@ func TestTimeouted(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
-		sheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err := schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -975,9 +1011,9 @@ func TestTimeouted(t *testing.T) {
 		err = service.Timeout(taskID)
 		assert.NoError(t, err)
 
-		sheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Equal(t, taskID, *sheduledTaskID)
+		assert.Equal(t, taskID, *scheduledTaskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -1058,9 +1094,9 @@ func TestTimeouted(t *testing.T) {
 
 		assert.True(t, notifier.Notified(taskID))
 
-		sheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
+		scheduledTaskID, err = schedulerRepo.NextInQueue(ctx, "test")
 		assert.NoError(t, err)
-		assert.Nil(t, sheduledTaskID)
+		assert.Nil(t, scheduledTaskID)
 	})
 }
 
@@ -1077,6 +1113,10 @@ func TestTimeoutedUnknown(t *testing.T) {
 		assert.NotNil(t, err)
 
 		assert.Empty(t, eventPublisher.Published())
+
+		scheduledTaskID, err := schedulerRepo.NextInQueue(context.Background(), "test")
+		assert.NoError(t, err)
+		assert.Nil(t, scheduledTaskID)
 	})
 }
 
