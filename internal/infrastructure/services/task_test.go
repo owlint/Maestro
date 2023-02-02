@@ -280,6 +280,8 @@ func TestComplete(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0, "")
 		assert.Nil(t, err)
 
+		assertScheduled(t, schedulerRepo, taskID)
+
 		err = service.Select(taskID)
 		assert.NoError(t, err)
 
@@ -333,6 +335,8 @@ func TestComplete(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.True(t, notifier.Notified(taskID))
+
+		assertEmptyScheduler(t, schedulerRepo)
 	})
 }
 
@@ -349,6 +353,8 @@ func TestCompleteExpiration(t *testing.T) {
 
 		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0, "")
 		assert.Nil(t, err)
+
+		assertScheduled(t, schedulerRepo, taskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -402,6 +408,8 @@ func TestCompleteExpiration(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.True(t, notifier.Notified(taskID))
+
+		assertEmptyScheduler(t, schedulerRepo)
 	})
 }
 
@@ -418,6 +426,8 @@ func TestCompleteUnknown(t *testing.T) {
 		assert.NotNil(t, err)
 
 		assert.Empty(t, eventPublisher.Published())
+
+		assertEmptyScheduler(t, schedulerRepo)
 	})
 }
 
@@ -434,6 +444,8 @@ func TestCancel(t *testing.T) {
 
 		taskID, err := service.Create("owner", "test", 3, 5, "", 0, 0, "")
 		assert.Nil(t, err)
+
+		assertScheduled(t, schedulerRepo, taskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -488,6 +500,8 @@ func TestCancel(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.True(t, notifier.Notified(taskID))
+
+		assertEmptyScheduler(t, schedulerRepo)
 	})
 }
 
@@ -504,6 +518,8 @@ func TestCancelUnknown(t *testing.T) {
 		assert.NotNil(t, err)
 
 		assert.Empty(t, eventPublisher.Published())
+
+		assertEmptyScheduler(t, schedulerRepo)
 	})
 }
 
@@ -521,6 +537,8 @@ func TestFail(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
+		assertScheduled(t, schedulerRepo, taskID)
+
 		err = service.Select(taskID)
 		assert.NoError(t, err)
 
@@ -531,6 +549,10 @@ func TestFail(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, domain.TaskStatePending, task.State())
 		assert.Equal(t, int32(1), task.Retries())
+
+		ttlCmd := redis.TTL(ctx, fmt.Sprintf("test-%s", taskID))
+		assert.NoError(t, ttlCmd.Err())
+		assert.Equal(t, time.Duration(-1), ttlCmd.Val())
 
 		assert.Equal(t, []domain.TaskEvent{
 			{
@@ -571,10 +593,12 @@ func TestFail(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.False(t, notifier.Notified(taskID))
+
+		assertScheduled(t, schedulerRepo, taskID)
 	})
 }
 
-func TestFailTTL(t *testing.T) {
+func TestFailWithStartTimeout(t *testing.T) {
 	testutils.WithTestRedis(func(redis *redis.Client) {
 		ctx := context.Background()
 
@@ -587,6 +611,8 @@ func TestFailTTL(t *testing.T) {
 
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5, "")
 		assert.Nil(t, err)
+
+		assertScheduled(t, schedulerRepo, taskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -642,6 +668,8 @@ func TestFailTTL(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.False(t, notifier.Notified(taskID))
+
+		assertScheduled(t, schedulerRepo, taskID)
 	})
 }
 
@@ -659,11 +687,15 @@ func TestFailed(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
+		assertScheduled(t, schedulerRepo, taskID)
+
 		err = service.Select(taskID)
 		assert.NoError(t, err)
 
 		err = service.Fail(taskID)
 		assert.NoError(t, err)
+
+		assertScheduled(t, schedulerRepo, taskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -742,6 +774,8 @@ func TestFailed(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.True(t, notifier.Notified(taskID))
+
+		assertEmptyScheduler(t, schedulerRepo)
 	})
 }
 
@@ -758,6 +792,8 @@ func TestFailedUnknown(t *testing.T) {
 		assert.NotNil(t, err)
 
 		assert.Empty(t, eventPublisher.Published())
+
+		assertEmptyScheduler(t, schedulerRepo)
 	})
 }
 
@@ -775,6 +811,8 @@ func TestTimeout(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
+		assertScheduled(t, schedulerRepo, taskID)
+
 		err = service.Select(taskID)
 		assert.NoError(t, err)
 
@@ -785,6 +823,10 @@ func TestTimeout(t *testing.T) {
 		assert.Nil(t, err)
 		assert.Equal(t, domain.TaskStatePending, task.State())
 		assert.Equal(t, int32(1), task.Retries())
+
+		ttlCmd := redis.TTL(ctx, fmt.Sprintf("test-%s", taskID))
+		assert.NoError(t, ttlCmd.Err())
+		assert.Equal(t, time.Duration(-1), ttlCmd.Val())
 
 		assert.Equal(t, []domain.TaskEvent{
 			{
@@ -825,10 +867,12 @@ func TestTimeout(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.False(t, notifier.Notified(taskID))
+
+		assertScheduled(t, schedulerRepo, taskID)
 	})
 }
 
-func TestTimeoutTTL(t *testing.T) {
+func TestTimeoutWithStartTimeout(t *testing.T) {
 	testutils.WithTestRedis(func(redis *redis.Client) {
 		ctx := context.Background()
 
@@ -841,6 +885,8 @@ func TestTimeoutTTL(t *testing.T) {
 
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 5, "")
 		assert.Nil(t, err)
+
+		assertScheduled(t, schedulerRepo, taskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -896,6 +942,8 @@ func TestTimeoutTTL(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.False(t, notifier.Notified(taskID))
+
+		assertScheduled(t, schedulerRepo, taskID)
 	})
 }
 
@@ -913,11 +961,15 @@ func TestTimeouted(t *testing.T) {
 		taskID, err := service.Create("owner", "test", 3, 1, "", 0, 0, "")
 		assert.Nil(t, err)
 
+		assertScheduled(t, schedulerRepo, taskID)
+
 		err = service.Select(taskID)
 		assert.NoError(t, err)
 
 		err = service.Timeout(taskID)
 		assert.NoError(t, err)
+
+		assertScheduled(t, schedulerRepo, taskID)
 
 		err = service.Select(taskID)
 		assert.NoError(t, err)
@@ -997,6 +1049,8 @@ func TestTimeouted(t *testing.T) {
 		}, eventPublisher.Published())
 
 		assert.True(t, notifier.Notified(taskID))
+
+		assertEmptyScheduler(t, schedulerRepo)
 	})
 }
 
@@ -1013,6 +1067,8 @@ func TestTimeoutedUnknown(t *testing.T) {
 		assert.NotNil(t, err)
 
 		assert.Empty(t, eventPublisher.Published())
+
+		assertEmptyScheduler(t, schedulerRepo)
 	})
 }
 
@@ -1043,4 +1099,16 @@ func taskTTL(ctx context.Context, redis *redis.Client, taskID string) (time.Dura
 	}
 
 	return ttl, nil
+}
+
+func assertScheduled(t *testing.T, schedulerRepo repository.SchedulerRepository, taskID string) {
+	scheduledTaskID, err := schedulerRepo.NextInQueue(context.Background(), "test")
+	assert.NoError(t, err)
+	assert.Equal(t, taskID, *scheduledTaskID)
+}
+
+func assertEmptyScheduler(t *testing.T, schedulerRepo repository.SchedulerRepository) {
+	scheduledTaskID, err := schedulerRepo.NextInQueue(context.Background(), "test")
+	assert.NoError(t, err)
+	assert.Nil(t, scheduledTaskID)
 }

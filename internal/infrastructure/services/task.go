@@ -232,15 +232,9 @@ func (s TaskServiceImpl) Fail(taskID string) error {
 		}
 
 		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
-	} else if task.StartTimeout() > 0 {
-		err = s.schedulerRepo.Schedule(ctx, task)
-		if err != nil {
-			return err
-		}
-		return s.taskRepo.SetTTL(ctx, taskID, int(task.StartTimeout()))
 	}
 
-	return nil
+	return s.reschedule(ctx, task)
 }
 
 // Timeout marks a task as timedout
@@ -285,15 +279,9 @@ func (s TaskServiceImpl) Timeout(taskID string) error {
 		}
 
 		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
-	} else if task.StartTimeout() > 0 {
-		err = s.schedulerRepo.Schedule(ctx, task)
-		if err != nil {
-			return err
-		}
-		return s.taskRepo.SetTTL(ctx, task.TaskID, int(task.StartTimeout()))
 	}
 
-	return nil
+	return s.reschedule(ctx, task)
 }
 
 // Complete marks a task as completed
@@ -410,6 +398,19 @@ func (s TaskServiceImpl) ConsumeQueueResult(queue string) (*domain.Task, error) 
 	}
 
 	return oldestTask, nil
+}
+
+func (s TaskServiceImpl) reschedule(ctx context.Context, task *domain.Task) error {
+	err := s.schedulerRepo.Schedule(ctx, task)
+	if err != nil {
+		return err
+	}
+
+	if task.StartTimeout() > 0 {
+		return s.taskRepo.SetTTL(ctx, task.TaskID, int(task.StartTimeout()))
+	}
+
+	return s.taskRepo.RemoveTTL(ctx, task.TaskID)
 }
 
 // ############################################################################
