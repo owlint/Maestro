@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -37,6 +38,10 @@ type TaskEvent struct {
 	StartTimeout int32     `json:"start_timeout"`
 }
 
+type TaskNotification struct {
+	TaskID string `json:"task_id"`
+}
+
 // Task is a task to be executed
 type Task struct {
 	TaskID       string
@@ -53,16 +58,29 @@ type Task struct {
 	startTimeout int32
 	result       string
 	version      int
+	callbackURL  string
 
 	events []TaskEvent
 }
 
 // NewTask creates a new task
-func NewTask(owner string, taskQueue string, payload string, timeout int32, startTimeout int32, maxRetries int32) *Task {
+func NewTask(
+	owner string,
+	taskQueue string,
+	payload string,
+	timeout int32,
+	startTimeout int32,
+	maxRetries int32,
+	callbackURL string,
+) (*Task, error) {
+	if _, err := url.Parse(callbackURL); err != nil {
+		return nil, fmt.Errorf("invalid callback URL: %w", err)
+	}
+
 	now := time.Now().Unix()
 	taskID := fmt.Sprintf("Task-%s", uuid.New().String())
 
-	task := &Task{
+	return &Task{
 		TaskID:       taskID,
 		owner:        owner,
 		payload:      payload,
@@ -75,6 +93,7 @@ func NewTask(owner string, taskQueue string, payload string, timeout int32, star
 		updatedAt:    now,
 		startTimeout: startTimeout,
 		notBefore:    now,
+		callbackURL:  callbackURL,
 		events: []TaskEvent{{
 			TaskID:       taskID,
 			OwnerID:      owner,
@@ -86,16 +105,27 @@ func NewTask(owner string, taskQueue string, payload string, timeout int32, star
 			StartTimeout: startTimeout,
 			NotBefore:    now,
 		}},
-	}
-
-	return task
+	}, nil
 }
 
 // NewTask creates a new task
-func NewFutureTask(owner string, taskQueue string, payload string, timeout int32, startTimeout int32, maxRetries int32, notBefore int64) (*Task, error) {
+func NewFutureTask(
+	owner string,
+	taskQueue string,
+	payload string,
+	timeout int32,
+	startTimeout int32,
+	maxRetries int32,
+	notBefore int64,
+	callbackURL string,
+) (*Task, error) {
 	now := time.Now().Unix()
 	if notBefore < now {
 		return nil, errors.New("notBefore should be in the future")
+	}
+
+	if _, err := url.Parse(callbackURL); err != nil {
+		return nil, fmt.Errorf("invalid callback URL: %w", err)
 	}
 
 	taskID := fmt.Sprintf("Task-%s", uuid.New().String())
@@ -112,6 +142,7 @@ func NewFutureTask(owner string, taskQueue string, payload string, timeout int32
 		updatedAt:    now,
 		startTimeout: startTimeout,
 		notBefore:    notBefore,
+		callbackURL:  callbackURL,
 		events: []TaskEvent{{
 			TaskID:       taskID,
 			OwnerID:      owner,
@@ -164,6 +195,11 @@ func TaskFromStringMap(data map[string]string) (*Task, error) {
 		}
 	}
 
+	callbackURL := ""
+	if url, ok := data["callback_url"]; ok {
+		callbackURL = url
+	}
+
 	task := &Task{
 		TaskID:       data["task_id"],
 		owner:        data["owner"],
@@ -178,6 +214,7 @@ func TaskFromStringMap(data map[string]string) (*Task, error) {
 		updatedAt:    updatedAt,
 		notBefore:    notBefore,
 		version:      version,
+		callbackURL:  callbackURL,
 	}
 
 	if result, present := data["result"]; present {
@@ -343,6 +380,10 @@ func (t *Task) Timeout() error {
 
 func (t Task) Version() int {
 	return t.version
+}
+
+func (t Task) CallbackURL() string {
+	return t.callbackURL
 }
 
 func (t *Task) updated() {

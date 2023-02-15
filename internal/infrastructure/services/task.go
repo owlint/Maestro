@@ -10,6 +10,7 @@ import (
 	"github.com/bsm/redislock"
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/owlint/maestro/internal/domain"
 
@@ -23,7 +24,16 @@ type TaskEventPublisher interface {
 
 // TaskService is a service to manage tasks
 type TaskService interface {
-	Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error)
+	Create(
+		owner string,
+		taskQueue string,
+		timeout int32,
+		retry int32,
+		payload string,
+		notBefore int64,
+		startTimeout int32,
+		callbackURL string,
+	) (string, error)
 	Select(taskID string) error
 	Fail(taskID string) error
 	Cancel(taskID string) error
@@ -35,18 +45,22 @@ type TaskService interface {
 
 // TaskServiceImpl is an implementation of TaskService
 type TaskServiceImpl struct {
+	logger           log.Logger
 	taskRepo         repository.TaskRepository
 	schedulerRepo    repository.SchedulerRepository
 	eventPublisher   TaskEventPublisher
+	notifier         Notifier
 	view             view.TaskView
 	resultExpiration int
 }
 
 // NewTaskService creates a new TaskService
 func NewTaskService(
+	logger log.Logger,
 	taskRepo repository.TaskRepository,
 	schedulerRepo repository.SchedulerRepository,
 	eventPublisher TaskEventPublisher,
+	notifier Notifier,
 	view view.TaskView,
 	resultExpiration int,
 ) TaskServiceImpl {
@@ -54,13 +68,23 @@ func NewTaskService(
 		taskRepo:         taskRepo,
 		schedulerRepo:    schedulerRepo,
 		eventPublisher:   eventPublisher,
+		notifier:         notifier,
 		view:             view,
 		resultExpiration: resultExpiration,
 	}
 }
 
 // Create creates a new task from given arguments
-func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
+func (s TaskServiceImpl) Create(
+	owner string,
+	taskQueue string,
+	timeout int32,
+	retry int32,
+	payload string,
+	notBefore int64,
+	startTimeout int32,
+	callbackURL string,
+) (string, error) {
 	ctx := context.Background()
 	if notBefore < 0 {
 		return "", errors.New("NotBefore must be >= 0")
@@ -69,12 +93,29 @@ func (s TaskServiceImpl) Create(owner string, taskQueue string, timeout int32, r
 	var task *domain.Task
 	var err error
 	if notBefore == 0 {
-		task = domain.NewTask(owner, taskQueue, payload, timeout, startTimeout, retry)
+		task, err = domain.NewTask(
+			owner,
+			taskQueue,
+			payload,
+			timeout,
+			startTimeout,
+			retry,
+			callbackURL,
+		)
 	} else {
-		task, err = domain.NewFutureTask(owner, taskQueue, payload, timeout, retry, startTimeout, notBefore)
-		if err != nil {
-			return "", err
-		}
+		task, err = domain.NewFutureTask(
+			owner,
+			taskQueue,
+			payload,
+			timeout,
+			retry,
+			startTimeout,
+			notBefore,
+			callbackURL,
+		)
+	}
+	if err != nil {
+		return "", err
 	}
 
 	err = s.taskRepo.Save(ctx, *task)
@@ -182,16 +223,18 @@ func (s TaskServiceImpl) Fail(taskID string) error {
 	}
 
 	if task.State() == domain.TaskStateFailed {
-		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
-	} else if task.StartTimeout() > 0 {
-		err = s.schedulerRepo.Schedule(ctx, task)
+		err = s.notifier.Notify(*task)
 		if err != nil {
-			return err
+			_ = level.Error(s.logger).Log(
+				"msg", "Could not send task notification",
+				"err", err.Error(),
+			)
 		}
-		return s.taskRepo.SetTTL(ctx, taskID, int(task.StartTimeout()))
+
+		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 	}
 
-	return nil
+	return s.reschedule(ctx, task)
 }
 
 // Timeout marks a task as timedout
@@ -227,16 +270,18 @@ func (s TaskServiceImpl) Timeout(taskID string) error {
 	}
 
 	if task.State() == domain.TaskStateTimedout {
-		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
-	} else if task.StartTimeout() > 0 {
-		err = s.schedulerRepo.Schedule(ctx, task)
+		err = s.notifier.Notify(*task)
 		if err != nil {
-			return err
+			_ = level.Error(s.logger).Log(
+				"msg", "Could not send task notification",
+				"err", err.Error(),
+			)
 		}
-		return s.taskRepo.SetTTL(ctx, task.TaskID, int(task.StartTimeout()))
+
+		return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 	}
 
-	return nil
+	return s.reschedule(ctx, task)
 }
 
 // Complete marks a task as completed
@@ -269,6 +314,14 @@ func (s TaskServiceImpl) Complete(taskID string, result string) error {
 	err = s.taskRepo.Save(ctx, *task)
 	if err != nil {
 		return err
+	}
+
+	err = s.notifier.Notify(*task)
+	if err != nil {
+		_ = level.Error(s.logger).Log(
+			"msg", "Could not send task notification",
+			"err", err.Error(),
+		)
 	}
 
 	return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
@@ -306,6 +359,14 @@ func (s TaskServiceImpl) Cancel(taskID string) error {
 		return err
 	}
 
+	err = s.notifier.Notify(*task)
+	if err != nil {
+		_ = level.Error(s.logger).Log(
+			"msg", "Could not send task notification",
+			"err", err.Error(),
+		)
+	}
+
 	return s.taskRepo.SetTTL(ctx, taskID, s.resultExpiration)
 }
 
@@ -339,6 +400,19 @@ func (s TaskServiceImpl) ConsumeQueueResult(queue string) (*domain.Task, error) 
 	return oldestTask, nil
 }
 
+func (s TaskServiceImpl) reschedule(ctx context.Context, task *domain.Task) error {
+	err := s.schedulerRepo.Schedule(ctx, task)
+	if err != nil {
+		return err
+	}
+
+	if task.StartTimeout() > 0 {
+		return s.taskRepo.SetTTL(ctx, task.TaskID, int(task.StartTimeout()))
+	}
+
+	return s.taskRepo.RemoveTTL(ctx, task.TaskID)
+}
+
 // ############################################################################
 //
 //	Logging Middleware
@@ -356,8 +430,26 @@ func NewTaskServiceLogger(logger log.Logger, next TaskService) TaskServiceLogger
 	}
 }
 
-func (l TaskServiceLogger) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
-	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
+func (l TaskServiceLogger) Create(
+	owner string,
+	taskQueue string,
+	timeout int32,
+	retry int32,
+	payload string,
+	notBefore int64,
+	startTimeout int32,
+	callbackURL string,
+) (string, error) {
+	result, err := l.next.Create(
+		owner,
+		taskQueue,
+		timeout,
+		retry,
+		payload,
+		notBefore,
+		startTimeout,
+		callbackURL,
+	)
 	defer func() {
 		_ = l.logger.Log(
 			"action", "create",
@@ -471,8 +563,26 @@ func NewTaskServiceLocker(locker *redislock.Client, next TaskService) TaskServic
 	}
 }
 
-func (l TaskServiceLocker) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
-	return l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
+func (l TaskServiceLocker) Create(
+	owner string,
+	taskQueue string,
+	timeout int32,
+	retry int32,
+	payload string,
+	notBefore int64,
+	startTimeout int32,
+	callbackURL string,
+) (string, error) {
+	return l.next.Create(
+		owner,
+		taskQueue,
+		timeout,
+		retry,
+		payload,
+		notBefore,
+		startTimeout,
+		callbackURL,
+	)
 }
 
 func (l TaskServiceLocker) Select(taskID string) error {
@@ -586,8 +696,26 @@ func NewTaskServiceInstrumenter(counter *kitprometheus.Counter, next TaskService
 	}
 }
 
-func (l TaskServiceInstrumenter) Create(owner string, taskQueue string, timeout int32, retry int32, payload string, notBefore int64, startTimeout int32) (string, error) {
-	result, err := l.next.Create(owner, taskQueue, timeout, retry, payload, notBefore, startTimeout)
+func (l TaskServiceInstrumenter) Create(
+	owner string,
+	taskQueue string,
+	timeout int32,
+	retry int32,
+	payload string,
+	notBefore int64,
+	startTimeout int32,
+	callbackURL string,
+) (string, error) {
+	result, err := l.next.Create(
+		owner,
+		taskQueue,
+		timeout,
+		retry,
+		payload,
+		notBefore,
+		startTimeout,
+		callbackURL,
+	)
 	defer func() {
 		lvs := []string{"state", domain.TaskStatePending.String(), "instance_id", l.instanceID, "err", fmt.Sprint(err != nil)}
 		l.counter.With(lvs...).Add(1)

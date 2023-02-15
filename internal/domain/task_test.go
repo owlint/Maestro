@@ -8,8 +8,8 @@ import (
 )
 
 func TestCreation(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 3)
-
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 3, "http://localhost:8080/callback")
+	assert.NoError(t, err)
 	assert.NotNil(t, task)
 	assert.GreaterOrEqual(t, len(task.TaskID), 1)
 	assert.Equal(t, "test", task.taskQueue)
@@ -21,26 +21,42 @@ func TestCreation(t *testing.T) {
 	assert.InDelta(t, time.Now().Unix(), task.createdAt, 5)
 	assert.InDelta(t, time.Now().Unix(), task.updatedAt, 5)
 	assert.InDelta(t, time.Now().Unix(), task.notBefore, 5)
+	assert.Equal(t, "http://localhost:8080/callback", task.CallbackURL())
+}
+
+func TestNewTaskEmptyCallbackURL(t *testing.T) {
+	task, err := NewTask(
+		"laurent",
+		"test",
+		"payload",
+		10, 0, 3,
+		"",
+	)
+	assert.NoError(t, err)
+	assert.Empty(t, task.CallbackURL())
 }
 
 func TestState(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 3)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 3, "")
+	assert.NoError(t, err)
 
 	assert.Equal(t, task.State(), TaskStatePending)
 }
 
 func TestRetries(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 3)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 3, "")
+	assert.NoError(t, err)
 
 	assert.Equal(t, task.Retries(), int32(0))
 }
 
 func TestSelect(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 3)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 3, "")
+	assert.NoError(t, err)
 
 	lastModificationTime := task.updatedAt
 	time.Sleep(1 * time.Second)
-	err := task.Select()
+	err = task.Select()
 
 	assert.Nil(t, err)
 	assert.Equal(t, TaskStateRunning, task.state)
@@ -48,9 +64,10 @@ func TestSelect(t *testing.T) {
 }
 
 func TestFailRetry(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 1)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 1, "")
+	assert.NoError(t, err)
 
-	err := task.Select()
+	err = task.Select()
 	assert.NoError(t, err)
 
 	err = task.Fail()
@@ -62,9 +79,10 @@ func TestFailRetry(t *testing.T) {
 }
 
 func TestFailed(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 1)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 1, "")
+	assert.NoError(t, err)
 
-	err := task.Select()
+	err = task.Select()
 	assert.NoError(t, err)
 
 	err = task.Fail()
@@ -81,9 +99,10 @@ func TestFailed(t *testing.T) {
 }
 
 func TestTimeoutRetry(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 1)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 1, "")
+	assert.NoError(t, err)
 
-	err := task.Select()
+	err = task.Select()
 	assert.NoError(t, err)
 
 	err = task.Timeout()
@@ -94,9 +113,10 @@ func TestTimeoutRetry(t *testing.T) {
 }
 
 func TestTimedout(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 1)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 1, "")
+	assert.NoError(t, err)
 
-	err := task.Select()
+	err = task.Select()
 	assert.NoError(t, err)
 
 	err = task.Timeout()
@@ -113,9 +133,10 @@ func TestTimedout(t *testing.T) {
 }
 
 func TestComplete(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 1)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 1, "")
+	assert.NoError(t, err)
 
-	err := task.Select()
+	err = task.Select()
 	assert.NoError(t, err)
 
 	err = task.Complete("this is a result")
@@ -128,9 +149,10 @@ func TestComplete(t *testing.T) {
 }
 
 func TestResult(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 1)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 1, "")
+	assert.NoError(t, err)
 
-	err := task.Select()
+	err = task.Select()
 	assert.NoError(t, err)
 
 	err = task.Complete("this is a result")
@@ -142,16 +164,18 @@ func TestResult(t *testing.T) {
 }
 
 func TestFailNotRunning(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 3)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 3, "")
+	assert.NoError(t, err)
 
-	err := task.Fail()
+	err = task.Fail()
 	assert.Error(t, err)
 }
 
 func TestCancelRunning(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 1)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 1, "")
+	assert.NoError(t, err)
 
-	err := task.Select()
+	err = task.Select()
 	assert.NoError(t, err)
 
 	err = task.Cancel()
@@ -163,9 +187,10 @@ func TestCancelRunning(t *testing.T) {
 }
 
 func TestCancelPending(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 1)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 1, "")
+	assert.NoError(t, err)
 
-	err := task.Cancel()
+	err = task.Cancel()
 	assert.NoError(t, err)
 
 	assert.Equal(t, TaskStateCanceled, task.state)
@@ -173,9 +198,10 @@ func TestCancelPending(t *testing.T) {
 }
 
 func TestCancelOther(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 0)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 0, "")
+	assert.NoError(t, err)
 
-	err := task.Select()
+	err = task.Select()
 	assert.NoError(t, err)
 
 	err = task.Fail()
@@ -187,13 +213,14 @@ func TestCancelOther(t *testing.T) {
 }
 
 func TestOwner(t *testing.T) {
-	task := NewTask("laurent", "test", "payload", 10, 0, 0)
+	task, err := NewTask("laurent", "test", "payload", 10, 0, 0, "")
+	assert.NoError(t, err)
 
 	assert.Equal(t, "laurent", task.Owner())
 }
 
 func TestCreationFuture(t *testing.T) {
-	task, err := NewFutureTask("laurent", "test", "payload", 10, 0, 3, time.Now().Unix()+10)
+	task, err := NewFutureTask("laurent", "test", "payload", 10, 0, 3, time.Now().Unix()+10, "")
 
 	assert.Nil(t, err)
 	assert.NotNil(t, task)
@@ -210,14 +237,14 @@ func TestCreationFuture(t *testing.T) {
 }
 
 func TestCreationPast(t *testing.T) {
-	task, err := NewFutureTask("laurent", "test", "payload", 10, 0, 3, time.Now().Unix()-10)
+	task, err := NewFutureTask("laurent", "test", "payload", 10, 0, 3, time.Now().Unix()-10, "")
 
 	assert.NotNil(t, err)
 	assert.Nil(t, task)
 }
 
 func TestCreationStartTimeout(t *testing.T) {
-	task, err := NewFutureTask("laurent", "test", "payload", 10, 7, 3, time.Now().Unix()+10)
+	task, err := NewFutureTask("laurent", "test", "payload", 10, 7, 3, time.Now().Unix()+10, "")
 
 	assert.Nil(t, err)
 	assert.NotNil(t, task)
@@ -248,6 +275,7 @@ func TestTaskFromStringMap(t *testing.T) {
 		"updated_at":   "2000",
 		"not_before":   "1000",
 		"version":      "42",
+		"callback_url": "http://localhost:8080/callback",
 	})
 
 	assert.NotNil(t, task)
@@ -263,4 +291,18 @@ func TestTaskFromStringMap(t *testing.T) {
 	assert.Equal(t, task.updatedAt, int64(2000))
 	assert.Equal(t, task.notBefore, int64(1000))
 	assert.Equal(t, task.version, 42)
+	assert.Equal(t, task.version, 42)
+	assert.Equal(t, task.callbackURL, "http://localhost:8080/callback")
+}
+
+func TestNewInvalidCallbackURL(t *testing.T) {
+	task, err := NewTask(
+		"laurent",
+		"test",
+		"payload",
+		10, 0, 3,
+		"foo\t",
+	)
+	assert.Error(t, err)
+	assert.Nil(t, task)
 }
